@@ -5,10 +5,17 @@
   all read this file.
 
       heading_deg ──► environment ──► wind_speed, relative_wind_direction_deg ──► windloads ──► X, Y, N, K
+                                                                                                │
+                                                                    tau_wind_x, tau_wind_y, tau_wind_n
+                                                                                                ▼
+                         north_meas, east_meas, psi_meas, tau_thr_* ──► kalman_filter ──► *_hat
 
   The constants are NOT here, but in config.toml. This file only sets:
     - config_path:  where each FMU finds the config file
     - heading_deg:  constant for now, later connected from the hull FMU
+    - kalman_filter measurements and thruster forces: not connected yet, so
+      they stay 0 (vessel held at the origin, no thrust). Later they come
+      from the hull and thruster FMUs.
 -->
 <OspSystemStructure xmlns="http://opensimulationplatform.com/MSMI/OSPSystemStructure" version="0.1">
     <StartTime>0.0</StartTime>
@@ -37,6 +44,26 @@
                 </InitialValue>
             </InitialValues>
         </Simulator>
+
+        <!-- Minimal example of the set-up: output = input * test (test from config.toml). -->
+        <Simulator name="test" source="fmus/Test.fmu">
+            <InitialValues>
+                <InitialValue variable="config_path">
+                    <String value="config.toml"/>
+                </InitialValue>
+                <InitialValue variable="input">
+                    <Real value="3.0"/>
+                </InitialValue>
+            </InitialValues>
+        </Simulator>
+
+        <Simulator name="kalman_filter" source="fmus/ExtendedKalmanFilter.fmu">
+            <InitialValues>
+                <InitialValue variable="config_path">
+                    <String value="config.toml"/>
+                </InitialValue>
+            </InitialValues>
+        </Simulator>
     </Simulators>
 
     <!-- Each VariableConnection goes from an output (first) to an input (second). -->
@@ -48,6 +75,20 @@
         <VariableConnection>
             <Variable simulator="environment" name="relative_wind_direction_deg"/>
             <Variable simulator="windloads" name="relative_wind_direction_deg"/>
+        </VariableConnection>
+
+        <!-- windloads -> kalman_filter (wind feed-forward, body frame) -->
+        <VariableConnection>
+            <Variable simulator="windloads" name="X"/>
+            <Variable simulator="kalman_filter" name="tau_wind_x"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="windloads" name="Y"/>
+            <Variable simulator="kalman_filter" name="tau_wind_y"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="windloads" name="N"/>
+            <Variable simulator="kalman_filter" name="tau_wind_n"/>
         </VariableConnection>
     </Connections>
 </OspSystemStructure>

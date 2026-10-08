@@ -1,10 +1,5 @@
 """WindLoads FMU: wind loads on a vessel using the Blendermann method.
 
-Based on FMU_try/windloads_empty.py. The difference is that the constants
-are no longer FMI parameters that someone else has to set. The FMU has
-only ONE parameter, config_path, and reads every constant itself from the
-config file when the simulation starts.
-
 The FMU's life cycle:
   1. __init__                   Runs when the FMU is loaded (and when it is
                                 built). The variables are registered here.

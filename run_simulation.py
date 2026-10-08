@@ -53,3 +53,10 @@ print(f"Relative wind at WindLoads: {result['wind_speed'].iloc[-1]} m/s "
 print("\nWind loads at the end of the simulation:")
 for name, unit in [("X", "N"), ("Y", "N"), ("N", "Nm"), ("K", "Nm")]:
     print(f"  {name} = {result[name].iloc[-1]:12.1f} {unit}")
+
+kalman = pd.read_csv(next(RESULTS.glob("kalman_filter_*.csv")), index_col="Time")
+print("\nKalman filter estimates at the end of the simulation:")
+for name, unit in [("north_hat", "m"), ("east_hat", "m"), ("psi_hat", "rad"),
+                   ("u_hat", "m/s"), ("v_hat", "m/s"), ("r_hat", "rad/s"),
+                   ("b_x_hat", "N"), ("b_y_hat", "N"), ("b_n_hat", "Nm")]:
+    print(f"  {name:9} = {kalman[name].iloc[-1]:12.4g} {unit}")

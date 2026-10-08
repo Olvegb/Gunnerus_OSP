@@ -1,9 +1,10 @@
 # Config_path_sim – co-simulation where the FMU reads the config file itself
 
-A small, complete simulation program with two FMUs:
+A small, complete simulation program with three FMUs:
 
-- **Environment** turns the wind in the earth frame (from `config.toml`) and the vessel heading into the wind seen from the vessel.
+- **Environment** turns the wind in the earth frame (from `config.toml`) and the vessel heading into the wind seen from the vessel. It also outputs the sea state (H_s, T_p, wave direction).
 - **WindLoads** (from `FMU_try`) calculates the wind forces and moments on the vessel with the Blendermann method.
+- **ExtendedKalmanFilter** estimates the vessel's position, velocity and slowly varying disturbances (bias) from position and heading measurements. See [The Kalman filter](#the-kalman-filter).
 
 Every constant is in one file, `config.toml`. Each FMU reads that file itself when the simulation starts, so you can change constants and run again **without rebuilding the FMUs**.
 
@@ -45,6 +46,7 @@ Wind loads at the end of the simulation:
 | `config.toml` | **Every constant**: wind, vessel data, air density, Blendermann coefficients, simulation length | When you want to change a value. No rebuild. |
 | `models/environment.py` | Environment FMU. Reads the wind from `config.toml`, takes the heading as input, outputs wind speed and relative wind direction. | When the logic changes. Needs a rebuild. |
 | `models/windloads.py` | WindLoads FMU. Reads `config.toml` and calculates the wind loads. | When the logic changes. Needs a rebuild. |
+| `models/kalman_filter.py` | ExtendedKalmanFilter FMU. Reads the vessel matrices and filter settings from `config.toml`, estimates position, velocity and bias. | When the logic changes. Needs a rebuild. |
 | `build_fmus.py` | Turns each `.py` in `models/` into an `.fmu` in `fmus/` | Rarely |
 | `OspSystemStructure.xml` | Which FMUs are included, how they are connected, step size, and **where the config file is** | When you add FMUs or connections |
 | `run_simulation.py` | Runs the simulation from Python and prints the result | Rarely |
@@ -85,6 +87,31 @@ All angles are in degrees and measured clockwise:
 
 Example: wind from 45°, heading 30° → the wind comes 15° to starboard of the bow.
 
+## The Kalman filter
+
+`models/kalman_filter.py` is a 3-DOF extended Kalman filter (a simple DP observer, Fossen). It has 9 states:
+
+| States | Meaning | Unit |
+|---|---|---|
+| `north`, `east`, `psi` | position and heading in NED | m, m, rad |
+| `u`, `v`, `r` | velocity in the body frame | m/s, m/s, rad/s |
+| `b_x`, `b_y`, `b_n` | bias in NED: every force the model doesn't know (current, wave drift, model errors) | N, N, Nm |
+
+| Kind | Variables | Source |
+|---|---|---|
+| **Inputs** | `north_meas`, `east_meas`, `psi_meas` | GNSS and gyro. Not connected yet, so 0. Later from the hull FMU. |
+| | `tau_thr_x`, `tau_thr_y`, `tau_thr_n` | Thruster forces, body frame. Not connected yet, so 0. |
+| | `tau_wind_x`, `tau_wind_y`, `tau_wind_n` | Wind forces from WindLoads (feed-forward), body frame. |
+| **Outputs** | `north_hat`, `east_hat`, `psi_hat`, `u_hat`, `v_hat`, `r_hat`, `b_x_hat`, `b_y_hat`, `b_n_hat` | The estimates |
+| **Constants** | `mass_matrix`, `damping_matrix` (in `[vessel]`) | Shared with a future hull FMU. **Placeholder values.** |
+| | `bias_time_constants`, `process_noise`, `measurement_noise`, `initial_covariance` (in `[kalman_filter]`) | Filter tuning |
+
+Each time step it **predicts** the state with the process model and then **corrects** it with the measurement.
+
+**Check that it works:** with the measurements at 0 (the vessel held still at the origin) and the wind pushing, the filter must explain the wind with a bias of the opposite sign. After about 30 s, `b_y_hat` and `b_n_hat` settle at about 97 % of −Y and −N from WindLoads. The bias time constant `T_b` pulls the estimate slightly towards 0, which is why it is not 100 %.
+
+Not included yet: wave-frequency motion (6 extra states in Fossen's DP observer).
+
 ## Key concepts in the FMU
 
 In `models/windloads.py` the variables fall into four kinds:
@@ -124,5 +151,6 @@ Once several FMUs read the config file, it is worth moving the reading code into
 - **Relative path.** `config_path = "config.toml"` is read from the folder the simulation is started from. `run_simulation.py` changes to this folder itself. With cosim CLI you must stand in this folder. With OSP-GUI it is safest to write a full path, such as `C:\Users\...\Config_path_sim\config.toml`, in the XML.
 - **Save the config file as UTF-8.** VS Code does this automatically.
 - **Python must be available when the FMU runs.** FMUs made with PythonFMU use the Python on the machine. So run with the `master` environment activated, also from the CLI.
+- **numpy must use OpenBLAS, not MKL.** On the NTNU virtual PC, `numpy.linalg` with MKL crashes Python without an error message. Fix: `conda install -n master "libblas=*=*openblas"`.
 - **The CSV files have 6 significant digits**, for example `1.60439e+06`. That is how libcosim writes them.
 - **cosim CLI and OSP-GUI are not tested**, because they are not installed on this machine. The Python run is tested and works.

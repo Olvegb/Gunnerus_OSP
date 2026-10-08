@@ -53,10 +53,22 @@ class Environment(Fmi2Slave):
         self.mean_wind_speed = 0.0          # [m/s]
         self.wind_direction_deg = 0.0       # where the wind comes from, clockwise from north [deg]
 
-        # OUTPUTS: connected to the WindLoads FMU's inputs.
+        # CONSTANTS: read from [waves] in the config file in exit_initialization_mode.
+        self.hs = 0.0                       # significant wave height [m]
+        self.tp = 0.0                       # peak wave period [s]
+        self.waves_from_deg = 0.0           # where the waves come from, clockwise from north [deg]
+
+        # OUTPUTS: wind, connected to the WindLoads FMU's inputs.
         self.wind_speed = 0.0                   # [m/s]
         self.relative_wind_direction_deg = 0.0  # [deg]
         for name in ("wind_speed", "relative_wind_direction_deg"):
+            self.register_variable(Real(name, causality=Fmi2Causality.output))
+
+        # OUTPUTS: waves, passed straight on from the config file.
+        self.H_s = 0.0                  # [m]
+        self.T_p = 0.0                  # [s]
+        self.wave_direction_deg = 0.0   # where the waves come from, clockwise from north [deg]
+        for name in ("H_s", "T_p", "wave_direction_deg"):
             self.register_variable(Real(name, causality=Fmi2Causality.output))
 
     def exit_initialization_mode(self):
@@ -68,14 +80,22 @@ class Environment(Fmi2Slave):
         self.mean_wind_speed = float(wind["mean_speed"])
         self.wind_direction_deg = float(wind["direction_deg"])
 
+        waves = config["waves"]
+        self.hs = float(waves["hs"])
+        self.tp = float(waves["tp"])
+        self.waves_from_deg = float(waves["direction_deg"])
+
         # Calculate the outputs once already now, so they are correct from
         # time 0 and not 0.0 until the first step.
-        self.update_outputs(0.0)
-
+        self.do_step(0.0, 0.0)
 
 
     def do_step(self, current_time, step_size):
         # Outputs at the end of the step.
         self.wind_speed = self.mean_wind_speed
         self.relative_wind_direction_deg = relative_wind_direction(self.wind_direction_deg, self.heading_deg)
+
+        self.H_s = self.hs
+        self.T_p = self.tp
+        self.wave_direction_deg = self.waves_from_deg
         return True
