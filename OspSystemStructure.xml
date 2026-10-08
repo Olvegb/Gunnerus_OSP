@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Describes the system itself: which FMUs are included, how they are
+  connected, and the step size. run_simulation.py, cosim CLI and OSP-GUI
+  all read this file.
+
+      heading_deg ──► environment ──► wind_speed, relative_wind_direction_deg ──► windloads ──► X, Y, N, K
+
+  The constants are NOT here, but in config.toml. This file only sets:
+    - config_path:  where each FMU finds the config file
+    - heading_deg:  constant for now, later connected from the hull FMU
+-->
+<OspSystemStructure xmlns="http://opensimulationplatform.com/MSMI/OSPSystemStructure" version="0.1">
+    <StartTime>0.0</StartTime>
+    <BaseStepSize>0.1</BaseStepSize>
+    <Algorithm>fixedStep</Algorithm>
+
+    <Simulators>
+        <!-- Relative paths are read from the folder the simulation is
+             started from. Use a full path, such as C:\...\config.toml,
+             if the tool runs from another folder (for example OSP-GUI). -->
+        <Simulator name="environment" source="fmus/Environment.fmu">
+            <InitialValues>
+                <InitialValue variable="config_path">
+                    <String value="config.toml"/>
+                </InitialValue>
+                <InitialValue variable="heading_deg">
+                    <Real value="0.0"/>
+                </InitialValue>
+            </InitialValues>
+        </Simulator>
+
+        <Simulator name="windloads" source="fmus/WindLoads_Blendermann.fmu">
+            <InitialValues>
+                <InitialValue variable="config_path">
+                    <String value="config.toml"/>
+                </InitialValue>
+            </InitialValues>
+        </Simulator>
+    </Simulators>
+
+    <!-- Each VariableConnection goes from an output (first) to an input (second). -->
+    <Connections>
+        <VariableConnection>
+            <Variable simulator="environment" name="wind_speed"/>
+            <Variable simulator="windloads" name="wind_speed"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="environment" name="relative_wind_direction_deg"/>
+            <Variable simulator="windloads" name="relative_wind_direction_deg"/>
+        </VariableConnection>
+    </Connections>
+</OspSystemStructure>

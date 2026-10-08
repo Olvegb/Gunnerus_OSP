@@ -1,0 +1,63 @@
+# =====================================================================
+#  CONFIG FILE FOR THE WHOLE SIMULATION
+# =====================================================================
+# Every constant the simulation needs is here, and only here.
+#
+# Change a number, save, and run the simulation again. You do NOT need
+# to rebuild the FMU, because the FMU reads this file every time the
+# simulation starts.
+#
+# This file is read by:
+#   - the Environment FMU (section [wind])
+#   - the WindLoads FMU (sections [environment], [vessel] and [blendermann])
+#   - run_simulation.py (section [simulation])
+#
+# The format is TOML: [section], then  name = value.
+# Everything after # is a comment.
+# =====================================================================
+
+
+[simulation]
+duration = 10.0             # how long the simulation runs [s]
+
+
+[environment]
+air_density = 1.226         # air density [kg/m^3], DNV-ST-0111 [3.5]
+
+
+# Read by the Environment FMU. Slowly varying wind, gusts etc. will be
+# added here later.
+[wind]
+mean_speed = 15           # mean wind speed [m/s]
+direction_deg = 90.0        # where the wind comes from, clockwise from north [deg]
+
+
+[vessel]
+type = "offshore_supply_vessel"  # must be one of the names under [blendermann]
+loa = 88.0                  # length over all [m]
+area_lateral = 700.0        # lateral area above water, A_L,wind [m^2]
+area_frontal = 280.0        # frontal area above water, A_F,wind [m^2]
+s_L = 12.0                  # longitudinal position of the lateral area centre [m]
+s_H = 3.0                   # height of the lateral area centre above the waterline [m]
+
+
+# Blendermann (1994), Table 1. The FMU uses the row with the same name
+# as  type  under [vessel].
+[blendermann]
+car_carrier                    = { cd_t = 0.95, cd_lAF_bow = 0.55, cd_lAF_stern = 0.60,  delta = 0.80, kappa = 1.2 }
+cargo_vessel_loaded            = { cd_t = 0.85, cd_lAF_bow = 0.65, cd_lAF_stern = 0.55,  delta = 0.40, kappa = 1.7 }
+cargo_vessel_container_on_deck = { cd_t = 0.85, cd_lAF_bow = 0.55, cd_lAF_stern = 0.50,  delta = 0.40, kappa = 1.4 }
+container_ship_loaded          = { cd_t = 0.90, cd_lAF_bow = 0.55, cd_lAF_stern = 0.55,  delta = 0.40, kappa = 1.4 }
+destroyer                      = { cd_t = 0.85, cd_lAF_bow = 0.60, cd_lAF_stern = 0.65,  delta = 0.65, kappa = 1.1 }
+diving_support_vessel          = { cd_t = 0.90, cd_lAF_bow = 0.60, cd_lAF_stern = 0.80,  delta = 0.55, kappa = 1.7 }
+drilling_vessel                = { cd_t = 1.00, cd_lAF_bow = 0.85, cd_lAF_stern = 0.925, delta = 0.10, kappa = 1.7 }
+ferry                          = { cd_t = 0.90, cd_lAF_bow = 0.45, cd_lAF_stern = 0.50,  delta = 0.80, kappa = 1.1 }
+fishing_vessel                 = { cd_t = 0.95, cd_lAF_bow = 0.70, cd_lAF_stern = 0.70,  delta = 0.40, kappa = 1.1 }
+lng_tanker                     = { cd_t = 0.70, cd_lAF_bow = 0.60, cd_lAF_stern = 0.65,  delta = 0.50, kappa = 1.1 }
+offshore_supply_vessel         = { cd_t = 0.90, cd_lAF_bow = 0.55, cd_lAF_stern = 0.80,  delta = 0.55, kappa = 1.2 }
+passenger_liner                = { cd_t = 0.90, cd_lAF_bow = 0.40, cd_lAF_stern = 0.40,  delta = 0.80, kappa = 1.2 }
+research_vessel                = { cd_t = 0.85, cd_lAF_bow = 0.55, cd_lAF_stern = 0.65,  delta = 0.60, kappa = 1.4 }
+speed_boat                     = { cd_t = 0.90, cd_lAF_bow = 0.55, cd_lAF_stern = 0.60,  delta = 0.60, kappa = 1.1 }
+tanker_loaded                  = { cd_t = 0.70, cd_lAF_bow = 0.90, cd_lAF_stern = 0.55,  delta = 0.40, kappa = 3.1 }
+tanker_ballast                 = { cd_t = 0.70, cd_lAF_bow = 0.75, cd_lAF_stern = 0.55,  delta = 0.40, kappa = 2.2 }
+tender                         = { cd_t = 0.85, cd_lAF_bow = 0.55, cd_lAF_stern = 0.55,  delta = 0.65, kappa = 1.1 }
