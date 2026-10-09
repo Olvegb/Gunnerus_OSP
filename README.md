@@ -153,4 +153,4 @@ Once several FMUs read the config file, it is worth moving the reading code into
 - **Python must be available when the FMU runs.** FMUs made with PythonFMU use the Python on the machine. So run with the `master` environment activated, also from the CLI.
 - **numpy must use OpenBLAS, not MKL.** On the NTNU virtual PC, `numpy.linalg` with MKL crashes Python without an error message. Fix: `conda install -n master "libblas=*=*openblas"`.
 - **The CSV files have 6 significant digits**, for example `1.60439e+06`. That is how libcosim writes them.
-- **cosim CLI and OSP-GUI are not tested**, because they are not installed on this machine. The Python run is tested and works.
+- **cosim CLI kommando;cosim run OspSystemStructure.xml -d 10 --output-dir results
