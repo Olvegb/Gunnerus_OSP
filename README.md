@@ -155,4 +155,6 @@ Once several FMUs read the config file, it is worth moving the reading code into
 - **The CSV files have 6 significant digits**, for example `1.60439e+06`. That is how libcosim writes them.
 
 
+
 - **cosim CLI kommando; cosim run OspSystemStructure.xml -d 10 --output-dir results
+- Build FMU commando python -m pythonfmu build -f models/environment.py -d fmus
