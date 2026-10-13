@@ -1,22 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!--
-  Describes the system itself: which FMUs are included, how they are
-  connected, and the step size. run_simulation.py, cosim CLI and OSP-GUI
-  all read this file.
 
-      heading_deg ──► environment ──► wind_speed, relative_wind_direction_deg ──► windloads ──► X, Y, N, K
-                                                                                                │
-                                                                    tau_wind_x, tau_wind_y, tau_wind_n
-                                                                                                ▼
-                         north_meas, east_meas, psi_meas, tau_thr_* ──► kalman_filter ──► *_hat
-
-  The constants are NOT here, but in config.toml. This file only sets:
-    - config_path:  where each FMU finds the config file
-    - heading_deg:  constant for now, later connected from the hull FMU
-    - kalman_filter measurements and thruster forces: not connected yet, so
-      they stay 0 (vessel held at the origin, no thrust). Later they come
-      from the hull and thruster FMUs.
--->
 <OspSystemStructure xmlns="http://opensimulationplatform.com/MSMI/OSPSystemStructure" version="0.1">
     <StartTime>0.0</StartTime>
     <BaseStepSize>0.1</BaseStepSize>
