@@ -1,14 +1,19 @@
 # Config_path_sim – co-simulation where the FMU reads the config file itself
 
-A small, complete simulation program with three FMUs:
+A small, complete simulation program with five FMUs:
 
 - **Environment** turns the wind in the earth frame (from `config.toml`) and the vessel heading into the wind seen from the vessel. It also outputs the sea state (H_s, T_p, wave direction).
 - **WindLoads** (from `FMU_try`) calculates the wind forces and moments on the vessel with the Blendermann method.
 - **ExtendedKalmanFilter** estimates the vessel's position, velocity and slowly varying disturbances (bias) from position and heading measurements. See [The Kalman filter](#the-kalman-filter).
+- **ThrustAllocation** and **ThrusterDynamics** turn a commanded force τ = (X, Y, N) into thrust and azimuth commands per thruster, and then into the force the thrusters actually give the vessel. See [docs/thruster_fmus.md](docs/thruster_fmus.md).
 
 Every constant is in one file, `config.toml`. Each FMU reads that file itself when the simulation starts, so you can change constants and run again **without rebuilding the FMUs**.
 
 This is option **B3** in [Configfile_ways.md](../Configfile_ways.md).
+
+## Documentation
+
+- [docs/thruster_fmus.md](docs/thruster_fmus.md): ThrustAllocation and ThrusterDynamics: inputs and outputs, `config.toml` keys, how to connect them.
 
 ## Getting started
 
@@ -16,7 +21,8 @@ Run from this folder in the VS Code terminal:
 
 ```powershell
 conda activate master
-python build_fmus.py       # creates fmus/Environment.fmu and fmus/WindLoads_Blendermann.fmu
+pip install -r requirements.txt   # once: the libraries the simulation needs
+python build_fmus.py       # creates one .fmu in fmus/ for each .py in models/
 python run_simulation.py   # runs the simulation and saves the results to results/
 ```
 
@@ -47,7 +53,10 @@ Wind loads at the end of the simulation:
 | `models/environment.py` | Environment FMU. Reads the wind from `config.toml`, takes the heading as input, outputs wind speed and relative wind direction. | When the logic changes. Needs a rebuild. |
 | `models/windloads.py` | WindLoads FMU. Reads `config.toml` and calculates the wind loads. | When the logic changes. Needs a rebuild. |
 | `models/kalman_filter.py` | ExtendedKalmanFilter FMU. Reads the vessel matrices and filter settings from `config.toml`, estimates position, velocity and bias. | When the logic changes. Needs a rebuild. |
-| `build_fmus.py` | Turns each `.py` in `models/` into an `.fmu` in `fmus/` | Rarely |
+| `models/thrust_allocation.py`, `models/thruster_dynamics.py` | ThrustAllocation and ThrusterDynamics FMUs. Thin wrappers around `thruster_cosim/`; read `[allocation]`, `[[power_sources]]` and `[[thrusters]]` from `config.toml`. | When the logic changes. Needs a rebuild. |
+| `thruster_cosim/` | The thruster logic (allocation LP, dynamics, power, forbidden zones). Built into every FMU's `resources/` | When the logic changes. Needs a rebuild. |
+| `build_fmus.py` | Turns each `.py` in `models/` into an `.fmu` in `fmus/`, with `thruster_cosim/` included | Rarely |
+| `requirements.txt` | The Python libraries the simulation needs | When a library is added |
 | `OspSystemStructure.xml` | Which FMUs are included, how they are connected, step size, and **where the config file is** | When you add FMUs or connections |
 | `run_simulation.py` | Runs the simulation from Python and prints the result | Rarely |
 | `fmus/` | The built FMUs | Created by `build_fmus.py` |
@@ -63,6 +72,9 @@ Wind loads at the end of the simulation:
  (from XML)        [wind]          wind_speed,       [environment], [vessel],
                                    relative_wind_    [blendermann]
                                    direction_deg
+
+ tau_X, tau_Y, tau_N ──► ThrustAllocation ──► ThrusterDynamics ──► X, Y, N (not connected yet)
+ (from XML)              thrust + azimuth command per thruster
 ```
 
 Step by step, when you run `python run_simulation.py`:
@@ -150,11 +162,11 @@ Once several FMUs read the config file, it is worth moving the reading code into
 
 - **Relative path.** `config_path = "config.toml"` is read from the folder the simulation is started from. `run_simulation.py` changes to this folder itself. With cosim CLI you must stand in this folder. With OSP-GUI it is safest to write a full path, such as `C:\Users\...\Config_path_sim\config.toml`, in the XML.
 - **Save the config file as UTF-8.** VS Code does this automatically.
-- **Python must be available when the FMU runs.** FMUs made with PythonFMU use the Python on the machine. So run with the `master` environment activated, also from the CLI.
+- **Python must be available when the FMU runs.** FMUs made with PythonFMU use the Python on the machine. So run with the `master` environment activated, also from the CLI. That Python needs the libraries in `requirements.txt`, including **scipy** for ThrustAllocation.
 - **numpy must use OpenBLAS, not MKL.** On the NTNU virtual PC, `numpy.linalg` with MKL crashes Python without an error message. Fix: `conda install -n master "libblas=*=*openblas"`.
 - **The CSV files have 6 significant digits**, for example `1.60439e+06`. That is how libcosim writes them.
 
 
 
-- **cosim CLI kommando; cosim run OspSystemStructure.xml -d 10 --output-dir results
+- **cosim CLI:** ` cosim run OspSystemStructure.xml -d 10 --output-dir results`
 - Build FMU commando python -m pythonfmu build -f models/environment.py -d fmus

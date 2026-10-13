@@ -1,5 +1,31 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Describes the system itself: which FMUs are included, how they are
+  connected, and the step size. run_simulation.py, cosim CLI and OSP-GUI
+  all read this file.
 
+      heading_deg ──► environment ──► wind_speed, relative_wind_direction_deg ──► windloads ──► X, Y, N, K
+                                                                                                │
+                                                                    tau_wind_x, tau_wind_y, tau_wind_n
+                                                                                                ▼
+                         north_meas, east_meas, psi_meas, tau_thr_* ──► kalman_filter ──► *_hat
+
+      tau_X, tau_Y, tau_N ──► allocation ──► dynamics ──► X, Y, N (not connected yet)
+                                  thrust and azimuth command per slot (thruster1..8)
+
+  The constants are NOT here, but in config.toml. This file only sets:
+    - config_path:  where each FMU finds the config file
+    - heading_deg:  constant for now, later connected from the hull FMU
+    - tau_X, tau_Y, tau_N:  the commanded force on allocation, constant for
+      now, later connected from the DP controller FMU
+    - kalman_filter measurements and thruster forces (tau_thr_*): not
+      connected yet, so they stay 0 (vessel held at the origin, no thrust).
+    - dynamics X, Y, N: not connected yet. Another stakeholder's FMU will
+      take them.
+  All 8 thruster slots are connected, so a layout with fewer thrusters needs
+  no change here: the empty slots carry 0. The thrusterK_available inputs
+  start as true on both thruster FMUs.
+-->
 <OspSystemStructure xmlns="http://opensimulationplatform.com/MSMI/OSPSystemStructure" version="0.1">
     <StartTime>0.0</StartTime>
     <BaseStepSize>0.1</BaseStepSize>
@@ -44,6 +70,32 @@
                 </InitialValue>
             </InitialValues>
         </Simulator>
+
+        <!-- Thrusters: see docs/thruster_fmus.md. -->
+        <Simulator name="allocation" source="fmus/ThrustAllocation.fmu">
+            <InitialValues>
+                <InitialValue variable="config_path">
+                    <String value="config.toml"/>
+                </InitialValue>
+                <InitialValue variable="tau_X">
+                    <Real value="0.0"/>
+                </InitialValue>
+                <InitialValue variable="tau_Y">
+                    <Real value="300000.0"/>
+                </InitialValue>
+                <InitialValue variable="tau_N">
+                    <Real value="0.0"/>
+                </InitialValue>
+            </InitialValues>
+        </Simulator>
+
+        <Simulator name="dynamics" source="fmus/ThrusterDynamics.fmu">
+            <InitialValues>
+                <InitialValue variable="config_path">
+                    <String value="config.toml"/>
+                </InitialValue>
+            </InitialValues>
+        </Simulator>
     </Simulators>
 
     <!-- Each VariableConnection goes from an output (first) to an input (second). -->
@@ -69,6 +121,72 @@
         <VariableConnection>
             <Variable simulator="windloads" name="N"/>
             <Variable simulator="kalman_filter" name="tau_wind_n"/>
+        </VariableConnection>
+
+        <!-- allocation -> dynamics: thrust and azimuth command for each of the 8 slots -->
+        <VariableConnection>
+            <Variable simulator="allocation" name="thruster1_thrust_command"/>
+            <Variable simulator="dynamics" name="thruster1_thrust_command"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="allocation" name="thruster1_azimuth_command_deg"/>
+            <Variable simulator="dynamics" name="thruster1_azimuth_command_deg"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="allocation" name="thruster2_thrust_command"/>
+            <Variable simulator="dynamics" name="thruster2_thrust_command"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="allocation" name="thruster2_azimuth_command_deg"/>
+            <Variable simulator="dynamics" name="thruster2_azimuth_command_deg"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="allocation" name="thruster3_thrust_command"/>
+            <Variable simulator="dynamics" name="thruster3_thrust_command"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="allocation" name="thruster3_azimuth_command_deg"/>
+            <Variable simulator="dynamics" name="thruster3_azimuth_command_deg"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="allocation" name="thruster4_thrust_command"/>
+            <Variable simulator="dynamics" name="thruster4_thrust_command"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="allocation" name="thruster4_azimuth_command_deg"/>
+            <Variable simulator="dynamics" name="thruster4_azimuth_command_deg"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="allocation" name="thruster5_thrust_command"/>
+            <Variable simulator="dynamics" name="thruster5_thrust_command"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="allocation" name="thruster5_azimuth_command_deg"/>
+            <Variable simulator="dynamics" name="thruster5_azimuth_command_deg"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="allocation" name="thruster6_thrust_command"/>
+            <Variable simulator="dynamics" name="thruster6_thrust_command"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="allocation" name="thruster6_azimuth_command_deg"/>
+            <Variable simulator="dynamics" name="thruster6_azimuth_command_deg"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="allocation" name="thruster7_thrust_command"/>
+            <Variable simulator="dynamics" name="thruster7_thrust_command"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="allocation" name="thruster7_azimuth_command_deg"/>
+            <Variable simulator="dynamics" name="thruster7_azimuth_command_deg"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="allocation" name="thruster8_thrust_command"/>
+            <Variable simulator="dynamics" name="thruster8_thrust_command"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="allocation" name="thruster8_azimuth_command_deg"/>
+            <Variable simulator="dynamics" name="thruster8_azimuth_command_deg"/>
         </VariableConnection>
     </Connections>
 </OspSystemStructure>

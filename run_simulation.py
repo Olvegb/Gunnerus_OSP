@@ -60,3 +60,10 @@ for name, unit in [("north_hat", "m"), ("east_hat", "m"), ("psi_hat", "rad"),
                    ("u_hat", "m/s"), ("v_hat", "m/s"), ("r_hat", "rad/s"),
                    ("b_x_hat", "N"), ("b_y_hat", "N"), ("b_n_hat", "Nm")]:
     print(f"  {name:9} = {kalman[name].iloc[-1]:12.4g} {unit}")
+
+allocation = pd.read_csv(next(RESULTS.glob("allocation_*.csv")), index_col="Time")
+dynamics = pd.read_csv(next(RESULTS.glob("dynamics_*.csv")), index_col="Time")
+print(f"\nThrusters at the end of the simulation (utilisation {allocation['utilisation'].iloc[-1]:.3f}, "
+      f"saturated {bool(allocation['saturated'].iloc[-1])}):")
+for name, unit in [("X", "N"), ("Y", "N"), ("N", "Nm"), ("total_power_kw", "kW")]:
+    print(f"  {name:14} = {dynamics[name].iloc[-1]:12.1f} {unit}")

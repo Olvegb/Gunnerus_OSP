@@ -11,6 +11,8 @@
 #   - the Environment FMU (sections [wind] and [waves])
 #   - the WindLoads FMU (sections [environment], [vessel] and [blendermann])
 #   - the ExtendedKalmanFilter FMU (sections [vessel] and [kalman_filter])
+#   - the ThrustAllocation and ThrusterDynamics FMUs (sections [allocation],
+#     [[power_sources]] and [[thrusters]], through thruster_cosim/layout.py)
 #   - run_simulation.py (section [simulation])
 #
 # The format is TOML: [section], then  name = value.
@@ -128,3 +130,87 @@ speed_boat                     = { cd_t = 0.90, cd_lAF_bow = 0.55, cd_lAF_stern 
 tanker_loaded                  = { cd_t = 0.70, cd_lAF_bow = 0.90, cd_lAF_stern = 0.55,  delta = 0.40, kappa = 3.1 }
 tanker_ballast                 = { cd_t = 0.70, cd_lAF_bow = 0.75, cd_lAF_stern = 0.55,  delta = 0.40, kappa = 2.2 }
 tender                         = { cd_t = 0.85, cd_lAF_bow = 0.55, cd_lAF_stern = 0.55,  delta = 0.65, kappa = 1.1 }
+
+
+# =====================================================================
+#  THRUSTERS: read by the ThrustAllocation and ThrusterDynamics FMUs
+# =====================================================================
+# Frame: Fossen body frame, x forward, y to starboard, z down. Positions
+# from the vessel model's body origin (here Lpp/2). Units SI, power in kW,
+# angles in degrees. Every key is explained in thruster_cosim/layout.py
+# and docs/thruster_fmus.md.
+# [[name]] starts one more entry in a list.
+
+[allocation]
+flushing_sectors = true     # add the DNV-ST-0111 [3.11.3] flushing sectors (needs diameter)
+# When the command is more than the thrusters can give: cost per N of error
+# in X and Y, and per Nm of error in N. Equal weights keep the heading first
+# (1 N of force error costs as much as 1 Nm of moment error).
+tau_weights = [1.0, 1.0, 1.0]
+
+
+# Switchboards. Leave out every [[power_sources]] for no power limit.
+[[power_sources]]
+name = "SWBD 1"
+available_kw = 3600.0
+reserve_fraction = 0.1      # share kept for other consumers
+
+[[power_sources]]
+name = "SWBD 2"
+available_kw = 3600.0
+reserve_fraction = 0.1
+
+
+# The thrusters: made-up ~80 m PSV, the test vessel of the DNV-ST-0111
+# project mirrored into this frame. max_thrust is the DNV [3.9.2] nominal
+# thrust, rounded to 100 N. The time constants and turn rates are made up
+# but typical; leave them out for a thruster that follows its command at once.
+#
+# The order matters: the k-th [[thrusters]] entry is slot k in the FMUs
+# (thruster1_..., thruster2_...). At most 8 thrusters.
+
+[[thrusters]]
+name = "AZ1"                # port azimuth
+kind = "azimuth"            # "azimuth", "tunnel" or "shaft_line"
+x = -40.0                   # [m]
+y = -5.5                    # [m]
+max_thrust = 377500.0       # [N]
+diameter = 3.0              # [m]
+power_kw = 2000.0           # power at max_thrust [kW]
+power_supply = [["SWBD 1", 1.0]]
+thrust_time_constant = 5.0  # first-order lag of the thrust [s]
+max_azimuth_rate = 10.0     # fastest it turns [deg/s]
+
+[[thrusters]]
+name = "AZ2"                # starboard azimuth
+kind = "azimuth"
+x = -40.0
+y = 5.5
+max_thrust = 377500.0
+diameter = 3.0
+power_kw = 2000.0
+power_supply = [["SWBD 2", 1.0]]
+thrust_time_constant = 5.0
+max_azimuth_rate = 10.0
+
+[[thrusters]]
+name = "BT1"                # bow tunnel; max_thrust pushes to starboard
+kind = "tunnel"
+x = 31.0
+y = 0.0
+max_thrust = 135800.0
+diameter = 2.0
+power_kw = 900.0
+power_supply = [["SWBD 1", 1.0]]
+thrust_time_constant = 3.0
+
+[[thrusters]]
+name = "BT2"
+kind = "tunnel"
+x = 28.0
+y = 0.0
+max_thrust = 126900.0
+diameter = 2.0
+power_kw = 900.0
+power_supply = [["SWBD 2", 1.0]]
+thrust_time_constant = 3.0

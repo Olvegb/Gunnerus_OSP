@@ -1,0 +1,10 @@
+# Every library the simulation needs. Python 3.11 or newer (tomllib), and
+# the same Python must be on the machine that runs the FMUs: pythonfmu FMUs
+# use the Python installed there.
+#
+# Install:  pip install -r requirements.txt   (also works inside the conda env)
+numpy==2.1.0         # every FMU that does matrix maths (Kalman filter, thrusters)
+scipy==1.14.1        # ThrustAllocation: linprog (HiGHS)
+pandas               # run_simulation.py: reads the result CSVs
+pythonfmu==0.7.0     # build_fmus.py (the version the FMUs in fmus/ were built with)
+libcosimpy==0.0.6    # run_simulation.py: runs OspSystemStructure.xml
