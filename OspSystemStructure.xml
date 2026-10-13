@@ -31,9 +31,6 @@
                 <InitialValue variable="config_path">
                     <String value="config.toml"/>
                 </InitialValue>
-                <InitialValue variable="heading_deg">
-                    <Real value="0.0"/>
-                </InitialValue>
             </InitialValues>
         </Simulator>
 

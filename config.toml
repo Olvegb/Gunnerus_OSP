@@ -31,11 +31,35 @@ test = 2.0                  # output = input * test
 air_density = 1.226         # air density [kg/m^3], DNV-ST-0111 [3.5]
 
 
-# Read by the Environment FMU. Slowly varying wind, gusts etc. will be
-# added here later.
+# Read by the Environment FMU. All wind outputs are in the NED frame.
+#   wind speed     = mean + slowly varying + gust
+#   wind direction = mean + rate * t + slowly varying
+# A part is switched off by setting it to 0: std = 0, n_components = 0,
+# or rate_deg_per_s = 0 and std_deg = 0.
 [wind]
-mean_speed = 15           # mean wind speed [m/s]
-direction_deg = 90.0        # where the wind comes from, clockwise from north [deg]
+mean_speed = 15             # mean wind speed (1-hour mean) [m/s]
+direction_deg = 90.0        # mean direction the wind comes from, clockwise from north [deg]
+reference_height = 10.0     # height the wind speed is given for [m]
+seed = 1                    # random seed; same seed = same wind every run
+
+# Slowly varying wind speed: first-order Gauss-Markov process.
+[wind.slowly_varying]
+time_constant = 300.0       # T, how slowly it changes [s]
+std = 1.0                   # standard deviation [m/s]
+
+# Gusts: sum of harmonics from the NORSOK N-003 / ISO 19901-1 (Froya) spectrum.
+# f_min should lie above the slowly varying band (about 1/(2 pi T) Hz),
+# so the two parts do not model the same frequencies twice.
+[wind.gust]
+f_min = 0.005               # lowest frequency [Hz]
+f_max = 0.5                 # highest frequency [Hz]
+n_components = 100          # number of harmonics
+
+# Gradual change of the wind direction.
+[wind.direction_variation]
+rate_deg_per_s = 0.0        # constant turning rate, clockwise positive [deg/s]
+time_constant = 600.0       # T of the slow random variation [s]
+std_deg = 5.0               # standard deviation of the slow random variation [deg]
 
 
 # Read by the Environment FMU. Irregular sea state.
