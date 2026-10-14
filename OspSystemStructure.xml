@@ -13,6 +13,9 @@
       tau_X, tau_Y, tau_N ──► allocation ──► dynamics ──► X, Y, N (not connected yet)
                                   thrust and azimuth command per slot (thruster1..8)
 
+      environment ──► H_s, T_p, wave_direction_deg ──► waves ──► wave<k>_amplitude, _omega, _phase,
+                                                                  _direction_deg, k = 1..100 (not connected yet)
+
   The constants are NOT here, but in config.toml. This file only sets:
     - config_path:  where each FMU finds the config file
     - heading_deg:  constant for now, later connected from the hull FMU
@@ -22,6 +25,8 @@
       connected yet, so they stay 0 (vessel held at the origin, no thrust).
     - dynamics X, Y, N: not connected yet. Another stakeholder's FMU will
       take them.
+    - waves wave<k>_*: not connected yet. The hull FMU will take them
+      (4 per wave component, see docs/waves_fmu.md).
   All 8 thruster slots are connected, so a layout with fewer thrusters needs
   no change here: the empty slots carry 0. The thrusterK_available inputs
   start as true on both thruster FMUs.
@@ -90,6 +95,15 @@
         </Simulator>
 
         <Simulator name="dynamics" source="fmus/ThrusterDynamics.fmu">
+            <InitialValues>
+                <InitialValue variable="config_path">
+                    <String value="config.toml"/>
+                </InitialValue>
+            </InitialValues>
+        </Simulator>
+
+        <!-- Waves: see docs/waves_fmu.md. -->
+        <Simulator name="waves" source="fmus/Waves.fmu">
             <InitialValues>
                 <InitialValue variable="config_path">
                     <String value="config.toml"/>
@@ -187,6 +201,20 @@
         <VariableConnection>
             <Variable simulator="allocation" name="thruster8_azimuth_command_deg"/>
             <Variable simulator="dynamics" name="thruster8_azimuth_command_deg"/>
+        </VariableConnection>
+
+        <!-- environment -> waves (sea state) -->
+        <VariableConnection>
+            <Variable simulator="environment" name="H_s"/>
+            <Variable simulator="waves" name="H_s"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="environment" name="T_p"/>
+            <Variable simulator="waves" name="T_p"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="environment" name="wave_direction_deg"/>
+            <Variable simulator="waves" name="wave_direction_deg"/>
         </VariableConnection>
     </Connections>
 </OspSystemStructure>

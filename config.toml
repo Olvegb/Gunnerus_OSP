@@ -9,6 +9,7 @@
 #
 # This file is read by:
 #   - the Environment FMU (sections [wind] and [waves])
+#   - the Waves FMU (section [waves] and its sub-sections)
 #   - the WindLoads FMU (sections [environment], [vessel] and [blendermann])
 #   - the ExtendedKalmanFilter FMU (sections [vessel] and [kalman_filter])
 #   - the ThrustAllocation and ThrusterDynamics FMUs (sections [allocation],
@@ -64,11 +65,42 @@ time_constant = 600.0       # T of the slow random variation [s]
 std_deg = 5.0               # standard deviation of the slow random variation [deg]
 
 
-# Read by the Environment FMU. Irregular sea state.
+# hs, tp and direction_deg are read by the Environment FMU, which sends them
+# on to the Waves FMU. The rest of [waves] is read by the Waves FMU
+# (models/waves.py), which turns the sea state into wave components.
+#   sea_type = "regular":   ONE regular wave with height H = hs and period T = tp,
+#                           travelling in the mean direction. [waves.spectrum],
+#                           [waves.spreading] and [waves.discretization] are not used.
+#   sea_type = "irregular": a sea made from a wave spectrum. [waves.spreading] type
+#                           decides if it is long-crested ("none") or short-crested ("cos2s").
 [waves]
-hs = 3.1                    # significant wave height H_s [m]
-tp = 8.5                    # peak wave period T_p [s]
+hs = 3.1                    # significant wave height H_s [m]  (regular sea: wave height H)
+tp = 8.5                    # peak wave period T_p [s]         (regular sea: wave period T)
 direction_deg = 45.0        # where the waves come from, clockwise from north [deg]
+sea_type = "irregular"      # "regular" or "irregular"
+seed = 123                  # random seed for phases, frequencies, directions; same seed = same sea
+
+# Wave spectrum (Sørensen 6.2.1, DNV-RP-C205).
+[waves.spectrum]
+type = "jonswap"            # "jonswap" or "pierson_moskowitz"
+gamma = 3.3                 # JONSWAP peak factor (not used for "pierson_moskowitz")
+
+# Directional spreading, D(theta) = cos^(2s) around the mean direction.
+[waves.spreading]
+type = "cos2s"              # "none" = long-crested, "cos2s" = short-crested
+s = 1                       # spreading exponent: 1 = cos^2 (ITTC/DNV), 2 = ISSC. Higher = narrower
+n_directions = 11           # number of direction bins
+direction_limit_deg = 90.0  # use directions within +- this angle of the mean [deg]
+
+# How the spectrum is split into wave components. The grid has
+# n_frequencies x n_directions components; the Waves FMU sends out the
+# N_WAVES (models/waves.py) with the most energy.
+[waves.discretization]
+n_frequencies = 30          # number of frequency bins
+omega_min_factor = 0.25     # lowest frequency  = factor * peak frequency
+omega_max_factor = 3.0      # highest frequency = factor * peak frequency
+random_frequencies = true   # random frequency inside each bin (the wave groups do not repeat)
+random_directions = true    # random direction inside each bin
 
 
 [vessel]
