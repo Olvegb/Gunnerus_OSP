@@ -1,11 +1,13 @@
 # Config_path_sim – co-simulation where the FMU reads the config file itself
 
-A small, complete simulation program with five FMUs:
+A small, complete simulation program with seven FMUs:
 
 - **Environment** turns the wind in the earth frame (from `config.toml`) and the vessel heading into the wind seen from the vessel. It also outputs the sea state (H_s, T_p, wave direction).
 - **WindLoads** (from `FMU_try`) calculates the wind forces and moments on the vessel with the Blendermann method.
 - **ExtendedKalmanFilter** estimates the vessel's position, velocity and slowly varying disturbances (bias) from position and heading measurements. See [The Kalman filter](#the-kalman-filter).
 - **ThrustAllocation** and **ThrusterDynamics** turn a commanded force τ = (X, Y, N) into thrust and azimuth commands per thruster, and then into the force the thrusters actually give the vessel. See [docs/thruster_fmus.md](docs/thruster_fmus.md).
+- **DPController** is a simple PID that holds the vessel at the set-point in `config.toml`: it takes the estimates from ExtendedKalmanFilter and gives the commanded force τ = (X, Y, N) to ThrustAllocation. See [docs/dp_controller.md](docs/dp_controller.md).
+- **Waves** turns the sea state from Environment (H_s, T_p, wave direction) into 100 regular wave components (amplitude, frequency, phase, direction) for the hull FMU. Regular or irregular (long- or short-crested) sea. See [docs/waves_fmu.md](docs/waves_fmu.md).
 
 Every constant is in one file, `config.toml`. Each FMU reads that file itself when the simulation starts, so you can change constants and run again **without rebuilding the FMUs**.
 
@@ -14,6 +16,8 @@ This is option **B3** in [Configfile_ways.md](../Configfile_ways.md).
 ## Documentation
 
 - [docs/thruster_fmus.md](docs/thruster_fmus.md): ThrustAllocation and ThrusterDynamics: inputs and outputs, `config.toml` keys, how to connect them.
+- [docs/dp_controller.md](docs/dp_controller.md): DPController: inputs and outputs, the control law, `config.toml` keys.
+- [docs/waves_fmu.md](docs/waves_fmu.md): Waves: inputs and outputs, `config.toml` keys, the wave elevation the hull FMU must use.
 
 ## Getting started
 
@@ -55,7 +59,12 @@ Wind loads at the end of the simulation:
 | `models/kalman_filter.py` | ExtendedKalmanFilter FMU. Reads the vessel matrices and filter settings from `config.toml`, estimates position, velocity and bias. | When the logic changes. Needs a rebuild. |
 | `models/thrust_allocation.py`, `models/thruster_dynamics.py` | ThrustAllocation and ThrusterDynamics FMUs. Thin wrappers around `thruster_cosim/`; read `[allocation]`, `[[power_sources]]` and `[[thrusters]]` from `config.toml`. | When the logic changes. Needs a rebuild. |
 | `thruster_cosim/` | The thruster logic (allocation LP, dynamics, power, forbidden zones). Built into every FMU's `resources/` | When the logic changes. Needs a rebuild. |
-| `build_fmus.py` | Turns each `.py` in `models/` into an `.fmu` in `fmus/`, with `thruster_cosim/` included | Rarely |
+| `models/dp_controller.py` | DPController FMU. Reads `[controller]` and the vessel matrices in `[vessel]` from `config.toml`, takes the Kalman filter estimates as inputs, outputs the commanded force τ. | When the logic changes. Needs a rebuild. |
+| `models/waves.py` | Waves FMU. Thin wrapper around `wave_cosim/`; reads `[waves]` from `config.toml`, takes H_s, T_p and wave direction as inputs, outputs the wave components. | When the logic changes. Needs a rebuild. |
+| `wave_cosim/` | The wave logic (spectra, spreading, splitting the sea into wave components). Built into every FMU's `resources/` | When the logic changes. Needs a rebuild. |
+| `tests/waves/` | Check scripts for the Waves FMU and `wave_cosim/`. Run from this folder, e.g. `python tests/waves/check_waves_fmu.py` | When the wave logic changes |
+| `tests/controller/` | Check scripts for the DPController FMU, including a closed-loop check with a simple vessel. Run from this folder, e.g. `python tests/controller/check_closed_loop.py` | When the controller changes |
+| `build_fmus.py` | Turns each `.py` in `models/` into an `.fmu` in `fmus/`, with `thruster_cosim/` and `wave_cosim/` included | Rarely |
 | `requirements.txt` | The Python libraries the simulation needs | When a library is added |
 | `OspSystemStructure.xml` | Which FMUs are included, how they are connected, step size, and **where the config file is** | When you add FMUs or connections |
 | `run_simulation.py` | Runs the simulation from Python and prints the result | Rarely |
@@ -73,8 +82,11 @@ Wind loads at the end of the simulation:
                                    relative_wind_    [blendermann]
                                    direction_deg
 
- tau_X, tau_Y, tau_N ──► ThrustAllocation ──► ThrusterDynamics ──► X, Y, N (not connected yet)
- (from XML)              thrust + azimuth command per thruster
+ ExtendedKalmanFilter ──*_hat──► DPController ──tau_X, tau_Y, tau_N──► ThrustAllocation ──► ThrusterDynamics ──► X, Y, N (not connected yet)
+                                  [controller], [vessel]                    thrust + azimuth command per thruster
+
+ Environment ──H_s, T_p, wave_direction_deg──► Waves ──► wave1..wave100 components (not connected yet)
+   [waves] hs, tp, direction_deg                [waves], [waves.*]
 ```
 
 Step by step, when you run `python run_simulation.py`:
