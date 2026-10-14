@@ -1,6 +1,6 @@
 """Environment FMU: Changes the enviroment during simulation.
 
-Reads the wind and wave parameters from the config file. All outputs are in
+Reads the wind, wave and current parameters from the config file. All outputs are in
 the earth-fixed NED frame; the FMU knows nothing about the vessel.
 
 Wind speed, split into three parts that are each given as their own output.
@@ -90,7 +90,7 @@ class Environment(Fmi2Slave):
 
     author = "Olve Grønås Birkeland"
     description = ("Changes the environment during simulation. Mean, slowly varying and gust "
-                   "wind speed, slowly varying wind direction (NED), and waves, from the config file.")
+                   "wind speed, slowly varying wind direction (NED), waves and current, from the config file.")
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -128,6 +128,12 @@ class Environment(Fmi2Slave):
         for name in ("H_s", "T_p", "wave_direction_deg"):
             self.register_variable(Real(name, causality=Fmi2Causality.output))
 
+        # OUTPUTS: current, NED frame, passed straight on from the config file.
+        self.current_speed = 0.0            # [m/s]
+        self.current_direction_deg = 0.0    # where the current flows TO, clockwise from north [deg]
+        for name in ("current_speed", "current_direction_deg"):
+            self.register_variable(Real(name, causality=Fmi2Causality.output))
+
     def exit_initialization_mode(self):
         if not self.config_path:
             raise ValueError("config_path is not set. Set it in OspSystemStructure.xml.")
@@ -159,6 +165,11 @@ class Environment(Fmi2Slave):
         self.hs = float(waves["hs"])
         self.tp = float(waves["tp"])
         self.waves_from_deg = float(waves["direction_deg"])
+
+        # The current is constant, so the outputs are set once here.
+        current = config["current"]
+        self.current_speed = float(current["speed"])
+        self.current_direction_deg = float(current["direction_deg"]) % 360.0
 
         # Calculate the outputs once already now, so they are correct from
         # time 0 and not 0.0 until the first step.
