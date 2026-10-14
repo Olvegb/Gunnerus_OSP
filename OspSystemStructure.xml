@@ -9,6 +9,10 @@
                                                                     tau_wind_x, tau_wind_y, tau_wind_n
                                                                                                 ▼
                          north_meas, east_meas, psi_meas, tau_thr_* ──► kalman_filter ──► *_hat
+                                                                                                    │
+                                    north_hat, east_hat, psi_hat, u_hat, v_hat, r_hat ◄─────────────┘
+                                                        ▼
+                                                  dp_controller ──► tau_X, tau_Y, tau_N ──► allocation
 
       tau_X, tau_Y, tau_N ──► allocation ──► dynamics ──► X, Y, N (not connected yet)
                                   thrust and azimuth command per slot (thruster1..8)
@@ -19,8 +23,8 @@
   The constants are NOT here, but in config.toml. This file only sets:
     - config_path:  where each FMU finds the config file
     - heading_deg:  constant for now, later connected from the hull FMU
-    - tau_X, tau_Y, tau_N:  the commanded force on allocation, constant for
-      now, later connected from the DP controller FMU
+    - tau_X, tau_Y, tau_N on allocation: connected from dp_controller, which
+      holds the vessel at the set-point in [controller] in config.toml.
     - kalman_filter measurements and thruster forces (tau_thr_*): not
       connected yet, so they stay 0 (vessel held at the origin, no thrust).
     - dynamics X, Y, N: not connected yet. Another stakeholder's FMU will
@@ -76,20 +80,20 @@
             </InitialValues>
         </Simulator>
 
+        <!-- DP controller: see docs/dp_controller.md. -->
+        <Simulator name="dp_controller" source="fmus/DPController.fmu">
+            <InitialValues>
+                <InitialValue variable="config_path">
+                    <String value="config.toml"/>
+                </InitialValue>
+            </InitialValues>
+        </Simulator>
+
         <!-- Thrusters: see docs/thruster_fmus.md. -->
         <Simulator name="allocation" source="fmus/ThrustAllocation.fmu">
             <InitialValues>
                 <InitialValue variable="config_path">
                     <String value="config.toml"/>
-                </InitialValue>
-                <InitialValue variable="tau_X">
-                    <Real value="0.0"/>
-                </InitialValue>
-                <InitialValue variable="tau_Y">
-                    <Real value="300000.0"/>
-                </InitialValue>
-                <InitialValue variable="tau_N">
-                    <Real value="0.0"/>
                 </InitialValue>
             </InitialValues>
         </Simulator>
@@ -135,6 +139,46 @@
         <VariableConnection>
             <Variable simulator="windloads" name="N"/>
             <Variable simulator="kalman_filter" name="tau_wind_n"/>
+        </VariableConnection>
+
+        <!-- kalman_filter -> dp_controller (estimates) -->
+        <VariableConnection>
+            <Variable simulator="kalman_filter" name="north_hat"/>
+            <Variable simulator="dp_controller" name="north_hat"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="kalman_filter" name="east_hat"/>
+            <Variable simulator="dp_controller" name="east_hat"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="kalman_filter" name="psi_hat"/>
+            <Variable simulator="dp_controller" name="psi_hat"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="kalman_filter" name="u_hat"/>
+            <Variable simulator="dp_controller" name="u_hat"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="kalman_filter" name="v_hat"/>
+            <Variable simulator="dp_controller" name="v_hat"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="kalman_filter" name="r_hat"/>
+            <Variable simulator="dp_controller" name="r_hat"/>
+        </VariableConnection>
+
+        <!-- dp_controller -> allocation (commanded force, body frame) -->
+        <VariableConnection>
+            <Variable simulator="dp_controller" name="tau_X"/>
+            <Variable simulator="allocation" name="tau_X"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="dp_controller" name="tau_Y"/>
+            <Variable simulator="allocation" name="tau_Y"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="dp_controller" name="tau_N"/>
+            <Variable simulator="allocation" name="tau_N"/>
         </VariableConnection>
 
         <!-- allocation -> dynamics: thrust and azimuth command for each of the 8 slots -->

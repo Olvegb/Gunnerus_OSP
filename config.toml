@@ -10,6 +10,7 @@
 # This file is read by:
 #   - the Environment FMU (sections [wind] and [waves])
 #   - the Waves FMU (section [waves] and its sub-sections)
+#   - the DPController FMU (sections [controller] and [vessel])
 #   - the WindLoads FMU (sections [environment], [vessel] and [blendermann])
 #   - the ExtendedKalmanFilter FMU (sections [vessel] and [kalman_filter])
 #   - the ThrustAllocation and ThrusterDynamics FMUs (sections [allocation],
@@ -127,6 +128,20 @@ damping_matrix = [
     [0.0,   1.8e5, 0.0  ],
     [0.0,   0.0,   9.0e7],
 ]
+
+
+# Read by the DPController FMU (models/dp_controller.py): a PID that holds
+# the vessel at the set-point. The gains are calculated from the diagonals of
+# mass_matrix M and damping_matrix D in [vessel], one value per degree of
+# freedom [surge, sway, yaw]:
+#   Kp = M wn^2,   Kd = 2 zeta wn M - D,   Ki = Kp wn / 10
+[controller]
+north_ref = 0.0             # set-point north [m]
+east_ref = 0.0              # set-point east [m]
+heading_ref_deg = 0.0       # set-point heading, clockwise from north [deg]
+natural_frequency = [0.05, 0.05, 0.05]   # wn [rad/s]: higher = faster and harder. 0.05 = period of about 2 min
+damping_ratio = [0.9, 0.9, 0.9]          # zeta [-]: 1 = critically damped, lower = more overshoot
+integral_force_limit = [3.0e5, 3.0e5, 1.0e7]   # anti-windup: the integral term gives at most this [N, N, Nm]
 
 
 # Read by the ExtendedKalmanFilter FMU.
