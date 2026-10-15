@@ -12,8 +12,9 @@
 #   [environment] [wind] [current]       Environment FMU
 #   [waves]                              Environment FMU (hs, tp, direction)
 #                                        and Waves FMU (the rest)
-#   [vessel]                             WindLoads, DPController, Kalman filter
-#   [blendermann]                        WindLoads FMU
+#   [vessel]                             Vessel, DPController, Kalman filter
+#   [vessel_fmu]                         Vessel FMU (hydrodynamic data file)
+#   [blendermann]                        Vessel FMU (wind loads)
 #   [controller]                         DPController FMU
 #   [kalman_filter]                      ExtendedKalmanFilter FMU
 #   [allocation] [[power_sources]]       ThrustAllocation and ThrusterDynamics
@@ -157,6 +158,12 @@ damping_matrix = [
     [0.0,   1.8e5, 0.0  ],
     [0.0,   0.0,   9.0e7],
 ]
+
+# Vessel FMU (models/vessel.py): 6-DOF LF + WF hull. The JSON file holds the
+# 6x6 matrices and hydrodynamic tables; the path is relative to this file.
+# SYNTHETIC test data for now, not RV Gunnerus.
+[vessel_fmu]
+data_file = "vessel_cosim/example_test_config.json"
 
 # Blendermann (1994), Table 1. WindLoads uses the row named by [vessel] type.
 [blendermann]

@@ -2,38 +2,42 @@
 <!--
   Describes the system itself: which FMUs are included, how they are
   connected, and the step size. run_simulation.py, cosim CLI and OSP-GUI
-  all read this file.
+  all read this file. The constants are NOT here, but in config.toml.
 
-      heading_deg ──► environment ──► wind_speed, relative_wind_direction_deg ──► windloads ──► X, Y, N, K
-                                                                                                │
-                                                                    tau_wind_x, tau_wind_y, tau_wind_n
-                                                                                                ▼
-                         north_meas, east_meas, psi_meas, tau_thr_* ──► kalman_filter ──► *_hat
-                                                                                                    │
-                                    north_hat, east_hat, psi_hat, u_hat, v_hat, r_hat ◄─────────────┘
-                                                        ▼
-                                                  dp_controller ──► tau_X, tau_Y, tau_N ──► allocation
+  Signal flow (one closed DP loop):
 
-      tau_X, tau_Y, tau_N ──► allocation ──► dynamics ──► X, Y, N (not connected yet)
-                                  thrust and azimuth command per slot (thruster1..8)
+    environment ──► wind (mean, slowly varying, gust, direction), current ─────────┐
+         │                                                                         │
+         └──► H_s, T_p, wave_direction ──► waves ──► wave<k>_* (k = 1..100) ───────┤
+                                                                                   ▼
+    dynamics ──► X, Y, N (delivered thrust, body) ──────────────────────────────► vessel
+       ▲  │                                                                        │
+       │  └──► tau_thr_x/y/n ──────────────┐            north, east, yaw ──────────┤
+       │                                   ▼                                       │
+       │                             kalman_filter ◄── tau_wind_x/y/n (wind_X/Y/N) ┘
+       │                                   │
+       │                                   ▼  north_hat ... r_hat
+       │                             dp_controller
+       │                                   │
+       │                                   ▼  tau_X, tau_Y, tau_N
+       └── thrust + azimuth command ◄── allocation      (8 thruster slots)
 
-      environment ──► H_s, T_p, wave_direction_deg ──► waves ──► wave<k>_amplitude, _omega, _phase,
-                                                                  _direction_deg, k = 1..100 (not connected yet)
+  Notes:
+    - Frames: environment and waves in NED; forces and velocities in the
+      vessel body frame. Vessel yaw and the filter's psi are in radians.
+    - The wind loads are calculated inside the vessel FMU from the relative
+      wind, so there is no separate WindLoads FMU.
+    - The filter gets the vessel's TOTAL position (LF + WF), like a real
+      GNSS and gyro would.
+    - All 8 thruster slots are connected, so a layout with fewer thrusters
+      needs no change here: the empty slots carry 0. thrusterK_available is
+      not connected and stays true.
+    - The vessel starts at rest at the origin (initial_* = 0).
 
-  The constants are NOT here, but in config.toml. This file only sets:
-    - config_path:  where each FMU finds the config file
-    - heading_deg:  constant for now, later connected from the hull FMU
-    - tau_X, tau_Y, tau_N on allocation: connected from dp_controller, which
-      holds the vessel at the set-point in [controller] in config.toml.
-    - kalman_filter measurements and thruster forces (tau_thr_*): not
-      connected yet, so they stay 0 (vessel held at the origin, no thrust).
-    - dynamics X, Y, N: not connected yet. Another stakeholder's FMU will
-      take them.
-    - waves wave<k>_*: not connected yet. The hull FMU will take them
-      (4 per wave component, see docs/waves_fmu.md).
-  All 8 thruster slots are connected, so a layout with fewer thrusters needs
-  no change here: the empty slots carry 0. The thrusterK_available inputs
-  start as true on both thruster FMUs.
+    Some comments before meeting with the OSP team:
+    - Wind from hull and not from enviroment in kalman.
+    - Maybe see if there is a possibility to have a vector as output, input
+    - Makes it more general because we now need to change .xml between vessels.
 -->
 <OspSystemStructure xmlns="http://opensimulationplatform.com/MSMI/OSPSystemStructure" version="0.1">
     <StartTime>0.0</StartTime>
@@ -44,6 +48,7 @@
         <!-- Relative paths are read from the folder the simulation is
              started from. Use a full path, such as C:\...\config.toml,
              if the tool runs from another folder (for example OSP-GUI). -->
+        <!-- Wind, waves (sea state) and current, NED. See models/environment.py. -->
         <Simulator name="environment" source="fmus/Environment.fmu">
             <InitialValues>
                 <InitialValue variable="config_path">
@@ -52,7 +57,8 @@
             </InitialValues>
         </Simulator>
 
-        <Simulator name="windloads" source="fmus/WindLoads_Blendermann.fmu">
+        <!-- Sea state to 100 wave components. See docs/waves_fmu.md. -->
+        <Simulator name="waves" source="fmus/Waves.fmu">
             <InitialValues>
                 <InitialValue variable="config_path">
                     <String value="config.toml"/>
@@ -60,14 +66,11 @@
             </InitialValues>
         </Simulator>
 
-        <!-- Minimal example of the set-up: output = input * test (test from config.toml). -->
-        <Simulator name="test" source="fmus/Test.fmu">
+        <!-- 6-DOF hull: LF + WF motion, wind and wave loads. See docs/vessel_fmu.md. -->
+        <Simulator name="vessel" source="fmus/VesselBlock.fmu">
             <InitialValues>
                 <InitialValue variable="config_path">
                     <String value="config.toml"/>
-                </InitialValue>
-                <InitialValue variable="input">
-                    <Real value="3.0"/>
                 </InitialValue>
             </InitialValues>
         </Simulator>
@@ -79,8 +82,7 @@
                 </InitialValue>
             </InitialValues>
         </Simulator>
-
-        <!-- DP controller: see docs/dp_controller.md. -->
+       
         <Simulator name="dp_controller" source="fmus/DPController.fmu">
             <InitialValues>
                 <InitialValue variable="config_path">
@@ -89,7 +91,6 @@
             </InitialValues>
         </Simulator>
 
-        <!-- Thrusters: see docs/thruster_fmus.md. -->
         <Simulator name="allocation" source="fmus/ThrustAllocation.fmu">
             <InitialValues>
                 <InitialValue variable="config_path">
@@ -106,11 +107,14 @@
             </InitialValues>
         </Simulator>
 
-        <!-- Waves: see docs/waves_fmu.md. -->
-        <Simulator name="waves" source="fmus/Waves.fmu">
+        <!-- Minimal example of the set-up: output = input * test. Not connected. -->
+        <Simulator name="test" source="fmus/Test.fmu">
             <InitialValues>
                 <InitialValue variable="config_path">
                     <String value="config.toml"/>
+                </InitialValue>
+                <InitialValue variable="input">
+                    <Real value="3.0"/>
                 </InitialValue>
             </InitialValues>
         </Simulator>
@@ -118,30 +122,1707 @@
 
     <!-- Each VariableConnection goes from an output (first) to an input (second). -->
     <Connections>
+        <!-- environment -> vessel: wind (NED, comes FROM) and current (NED components) -->
         <VariableConnection>
-            <Variable simulator="environment" name="wind_speed"/>
-            <Variable simulator="windloads" name="wind_speed"/>
+            <Variable simulator="environment" name="mean_wind_speed"/>
+            <Variable simulator="vessel" name="mean_wind_speed"/>
         </VariableConnection>
         <VariableConnection>
-            <Variable simulator="environment" name="relative_wind_direction_deg"/>
-            <Variable simulator="windloads" name="relative_wind_direction_deg"/>
+            <Variable simulator="environment" name="slowly_varying_wind_speed"/>
+            <Variable simulator="vessel" name="slowly_varying_wind_speed"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="environment" name="gust_wind_speed"/>
+            <Variable simulator="vessel" name="gust_wind_speed"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="environment" name="wind_direction_deg"/>
+            <Variable simulator="vessel" name="wind_direction_deg"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="environment" name="current_north"/>
+            <Variable simulator="vessel" name="current_north"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="environment" name="current_east"/>
+            <Variable simulator="vessel" name="current_east"/>
         </VariableConnection>
 
-        <!-- windloads -> kalman_filter (wind feed-forward, body frame) -->
+        <!-- environment -> waves: sea state -->
         <VariableConnection>
-            <Variable simulator="windloads" name="X"/>
+            <Variable simulator="environment" name="H_s"/>
+            <Variable simulator="waves" name="H_s"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="environment" name="T_p"/>
+            <Variable simulator="waves" name="T_p"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="environment" name="wave_direction_deg"/>
+            <Variable simulator="waves" name="wave_direction_deg"/>
+        </VariableConnection>
+
+        <!-- waves -> vessel: 100 wave components, 4 values each -->
+        <VariableConnection>
+            <Variable simulator="waves" name="wave1_amplitude"/>
+            <Variable simulator="vessel" name="wave1_amplitude"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave1_omega"/>
+            <Variable simulator="vessel" name="wave1_omega"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave1_phase"/>
+            <Variable simulator="vessel" name="wave1_phase"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave1_direction_deg"/>
+            <Variable simulator="vessel" name="wave1_direction_deg"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave2_amplitude"/>
+            <Variable simulator="vessel" name="wave2_amplitude"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave2_omega"/>
+            <Variable simulator="vessel" name="wave2_omega"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave2_phase"/>
+            <Variable simulator="vessel" name="wave2_phase"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave2_direction_deg"/>
+            <Variable simulator="vessel" name="wave2_direction_deg"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave3_amplitude"/>
+            <Variable simulator="vessel" name="wave3_amplitude"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave3_omega"/>
+            <Variable simulator="vessel" name="wave3_omega"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave3_phase"/>
+            <Variable simulator="vessel" name="wave3_phase"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave3_direction_deg"/>
+            <Variable simulator="vessel" name="wave3_direction_deg"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave4_amplitude"/>
+            <Variable simulator="vessel" name="wave4_amplitude"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave4_omega"/>
+            <Variable simulator="vessel" name="wave4_omega"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave4_phase"/>
+            <Variable simulator="vessel" name="wave4_phase"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave4_direction_deg"/>
+            <Variable simulator="vessel" name="wave4_direction_deg"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave5_amplitude"/>
+            <Variable simulator="vessel" name="wave5_amplitude"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave5_omega"/>
+            <Variable simulator="vessel" name="wave5_omega"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave5_phase"/>
+            <Variable simulator="vessel" name="wave5_phase"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave5_direction_deg"/>
+            <Variable simulator="vessel" name="wave5_direction_deg"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave6_amplitude"/>
+            <Variable simulator="vessel" name="wave6_amplitude"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave6_omega"/>
+            <Variable simulator="vessel" name="wave6_omega"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave6_phase"/>
+            <Variable simulator="vessel" name="wave6_phase"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave6_direction_deg"/>
+            <Variable simulator="vessel" name="wave6_direction_deg"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave7_amplitude"/>
+            <Variable simulator="vessel" name="wave7_amplitude"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave7_omega"/>
+            <Variable simulator="vessel" name="wave7_omega"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave7_phase"/>
+            <Variable simulator="vessel" name="wave7_phase"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave7_direction_deg"/>
+            <Variable simulator="vessel" name="wave7_direction_deg"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave8_amplitude"/>
+            <Variable simulator="vessel" name="wave8_amplitude"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave8_omega"/>
+            <Variable simulator="vessel" name="wave8_omega"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave8_phase"/>
+            <Variable simulator="vessel" name="wave8_phase"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave8_direction_deg"/>
+            <Variable simulator="vessel" name="wave8_direction_deg"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave9_amplitude"/>
+            <Variable simulator="vessel" name="wave9_amplitude"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave9_omega"/>
+            <Variable simulator="vessel" name="wave9_omega"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave9_phase"/>
+            <Variable simulator="vessel" name="wave9_phase"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave9_direction_deg"/>
+            <Variable simulator="vessel" name="wave9_direction_deg"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave10_amplitude"/>
+            <Variable simulator="vessel" name="wave10_amplitude"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave10_omega"/>
+            <Variable simulator="vessel" name="wave10_omega"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave10_phase"/>
+            <Variable simulator="vessel" name="wave10_phase"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave10_direction_deg"/>
+            <Variable simulator="vessel" name="wave10_direction_deg"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave11_amplitude"/>
+            <Variable simulator="vessel" name="wave11_amplitude"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave11_omega"/>
+            <Variable simulator="vessel" name="wave11_omega"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave11_phase"/>
+            <Variable simulator="vessel" name="wave11_phase"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave11_direction_deg"/>
+            <Variable simulator="vessel" name="wave11_direction_deg"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave12_amplitude"/>
+            <Variable simulator="vessel" name="wave12_amplitude"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave12_omega"/>
+            <Variable simulator="vessel" name="wave12_omega"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave12_phase"/>
+            <Variable simulator="vessel" name="wave12_phase"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave12_direction_deg"/>
+            <Variable simulator="vessel" name="wave12_direction_deg"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave13_amplitude"/>
+            <Variable simulator="vessel" name="wave13_amplitude"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave13_omega"/>
+            <Variable simulator="vessel" name="wave13_omega"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave13_phase"/>
+            <Variable simulator="vessel" name="wave13_phase"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave13_direction_deg"/>
+            <Variable simulator="vessel" name="wave13_direction_deg"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave14_amplitude"/>
+            <Variable simulator="vessel" name="wave14_amplitude"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave14_omega"/>
+            <Variable simulator="vessel" name="wave14_omega"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave14_phase"/>
+            <Variable simulator="vessel" name="wave14_phase"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave14_direction_deg"/>
+            <Variable simulator="vessel" name="wave14_direction_deg"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave15_amplitude"/>
+            <Variable simulator="vessel" name="wave15_amplitude"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave15_omega"/>
+            <Variable simulator="vessel" name="wave15_omega"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave15_phase"/>
+            <Variable simulator="vessel" name="wave15_phase"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave15_direction_deg"/>
+            <Variable simulator="vessel" name="wave15_direction_deg"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave16_amplitude"/>
+            <Variable simulator="vessel" name="wave16_amplitude"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave16_omega"/>
+            <Variable simulator="vessel" name="wave16_omega"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave16_phase"/>
+            <Variable simulator="vessel" name="wave16_phase"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave16_direction_deg"/>
+            <Variable simulator="vessel" name="wave16_direction_deg"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave17_amplitude"/>
+            <Variable simulator="vessel" name="wave17_amplitude"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave17_omega"/>
+            <Variable simulator="vessel" name="wave17_omega"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave17_phase"/>
+            <Variable simulator="vessel" name="wave17_phase"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave17_direction_deg"/>
+            <Variable simulator="vessel" name="wave17_direction_deg"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave18_amplitude"/>
+            <Variable simulator="vessel" name="wave18_amplitude"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave18_omega"/>
+            <Variable simulator="vessel" name="wave18_omega"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave18_phase"/>
+            <Variable simulator="vessel" name="wave18_phase"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave18_direction_deg"/>
+            <Variable simulator="vessel" name="wave18_direction_deg"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave19_amplitude"/>
+            <Variable simulator="vessel" name="wave19_amplitude"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave19_omega"/>
+            <Variable simulator="vessel" name="wave19_omega"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave19_phase"/>
+            <Variable simulator="vessel" name="wave19_phase"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave19_direction_deg"/>
+            <Variable simulator="vessel" name="wave19_direction_deg"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave20_amplitude"/>
+            <Variable simulator="vessel" name="wave20_amplitude"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave20_omega"/>
+            <Variable simulator="vessel" name="wave20_omega"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave20_phase"/>
+            <Variable simulator="vessel" name="wave20_phase"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave20_direction_deg"/>
+            <Variable simulator="vessel" name="wave20_direction_deg"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave21_amplitude"/>
+            <Variable simulator="vessel" name="wave21_amplitude"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave21_omega"/>
+            <Variable simulator="vessel" name="wave21_omega"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave21_phase"/>
+            <Variable simulator="vessel" name="wave21_phase"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave21_direction_deg"/>
+            <Variable simulator="vessel" name="wave21_direction_deg"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave22_amplitude"/>
+            <Variable simulator="vessel" name="wave22_amplitude"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave22_omega"/>
+            <Variable simulator="vessel" name="wave22_omega"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave22_phase"/>
+            <Variable simulator="vessel" name="wave22_phase"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave22_direction_deg"/>
+            <Variable simulator="vessel" name="wave22_direction_deg"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave23_amplitude"/>
+            <Variable simulator="vessel" name="wave23_amplitude"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave23_omega"/>
+            <Variable simulator="vessel" name="wave23_omega"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave23_phase"/>
+            <Variable simulator="vessel" name="wave23_phase"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave23_direction_deg"/>
+            <Variable simulator="vessel" name="wave23_direction_deg"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave24_amplitude"/>
+            <Variable simulator="vessel" name="wave24_amplitude"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave24_omega"/>
+            <Variable simulator="vessel" name="wave24_omega"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave24_phase"/>
+            <Variable simulator="vessel" name="wave24_phase"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave24_direction_deg"/>
+            <Variable simulator="vessel" name="wave24_direction_deg"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave25_amplitude"/>
+            <Variable simulator="vessel" name="wave25_amplitude"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave25_omega"/>
+            <Variable simulator="vessel" name="wave25_omega"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave25_phase"/>
+            <Variable simulator="vessel" name="wave25_phase"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave25_direction_deg"/>
+            <Variable simulator="vessel" name="wave25_direction_deg"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave26_amplitude"/>
+            <Variable simulator="vessel" name="wave26_amplitude"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave26_omega"/>
+            <Variable simulator="vessel" name="wave26_omega"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave26_phase"/>
+            <Variable simulator="vessel" name="wave26_phase"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave26_direction_deg"/>
+            <Variable simulator="vessel" name="wave26_direction_deg"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave27_amplitude"/>
+            <Variable simulator="vessel" name="wave27_amplitude"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave27_omega"/>
+            <Variable simulator="vessel" name="wave27_omega"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave27_phase"/>
+            <Variable simulator="vessel" name="wave27_phase"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave27_direction_deg"/>
+            <Variable simulator="vessel" name="wave27_direction_deg"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave28_amplitude"/>
+            <Variable simulator="vessel" name="wave28_amplitude"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave28_omega"/>
+            <Variable simulator="vessel" name="wave28_omega"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave28_phase"/>
+            <Variable simulator="vessel" name="wave28_phase"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave28_direction_deg"/>
+            <Variable simulator="vessel" name="wave28_direction_deg"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave29_amplitude"/>
+            <Variable simulator="vessel" name="wave29_amplitude"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave29_omega"/>
+            <Variable simulator="vessel" name="wave29_omega"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave29_phase"/>
+            <Variable simulator="vessel" name="wave29_phase"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave29_direction_deg"/>
+            <Variable simulator="vessel" name="wave29_direction_deg"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave30_amplitude"/>
+            <Variable simulator="vessel" name="wave30_amplitude"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave30_omega"/>
+            <Variable simulator="vessel" name="wave30_omega"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave30_phase"/>
+            <Variable simulator="vessel" name="wave30_phase"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave30_direction_deg"/>
+            <Variable simulator="vessel" name="wave30_direction_deg"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave31_amplitude"/>
+            <Variable simulator="vessel" name="wave31_amplitude"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave31_omega"/>
+            <Variable simulator="vessel" name="wave31_omega"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave31_phase"/>
+            <Variable simulator="vessel" name="wave31_phase"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave31_direction_deg"/>
+            <Variable simulator="vessel" name="wave31_direction_deg"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave32_amplitude"/>
+            <Variable simulator="vessel" name="wave32_amplitude"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave32_omega"/>
+            <Variable simulator="vessel" name="wave32_omega"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave32_phase"/>
+            <Variable simulator="vessel" name="wave32_phase"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave32_direction_deg"/>
+            <Variable simulator="vessel" name="wave32_direction_deg"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave33_amplitude"/>
+            <Variable simulator="vessel" name="wave33_amplitude"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave33_omega"/>
+            <Variable simulator="vessel" name="wave33_omega"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave33_phase"/>
+            <Variable simulator="vessel" name="wave33_phase"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave33_direction_deg"/>
+            <Variable simulator="vessel" name="wave33_direction_deg"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave34_amplitude"/>
+            <Variable simulator="vessel" name="wave34_amplitude"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave34_omega"/>
+            <Variable simulator="vessel" name="wave34_omega"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave34_phase"/>
+            <Variable simulator="vessel" name="wave34_phase"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave34_direction_deg"/>
+            <Variable simulator="vessel" name="wave34_direction_deg"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave35_amplitude"/>
+            <Variable simulator="vessel" name="wave35_amplitude"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave35_omega"/>
+            <Variable simulator="vessel" name="wave35_omega"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave35_phase"/>
+            <Variable simulator="vessel" name="wave35_phase"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave35_direction_deg"/>
+            <Variable simulator="vessel" name="wave35_direction_deg"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave36_amplitude"/>
+            <Variable simulator="vessel" name="wave36_amplitude"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave36_omega"/>
+            <Variable simulator="vessel" name="wave36_omega"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave36_phase"/>
+            <Variable simulator="vessel" name="wave36_phase"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave36_direction_deg"/>
+            <Variable simulator="vessel" name="wave36_direction_deg"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave37_amplitude"/>
+            <Variable simulator="vessel" name="wave37_amplitude"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave37_omega"/>
+            <Variable simulator="vessel" name="wave37_omega"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave37_phase"/>
+            <Variable simulator="vessel" name="wave37_phase"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave37_direction_deg"/>
+            <Variable simulator="vessel" name="wave37_direction_deg"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave38_amplitude"/>
+            <Variable simulator="vessel" name="wave38_amplitude"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave38_omega"/>
+            <Variable simulator="vessel" name="wave38_omega"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave38_phase"/>
+            <Variable simulator="vessel" name="wave38_phase"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave38_direction_deg"/>
+            <Variable simulator="vessel" name="wave38_direction_deg"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave39_amplitude"/>
+            <Variable simulator="vessel" name="wave39_amplitude"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave39_omega"/>
+            <Variable simulator="vessel" name="wave39_omega"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave39_phase"/>
+            <Variable simulator="vessel" name="wave39_phase"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave39_direction_deg"/>
+            <Variable simulator="vessel" name="wave39_direction_deg"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave40_amplitude"/>
+            <Variable simulator="vessel" name="wave40_amplitude"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave40_omega"/>
+            <Variable simulator="vessel" name="wave40_omega"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave40_phase"/>
+            <Variable simulator="vessel" name="wave40_phase"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave40_direction_deg"/>
+            <Variable simulator="vessel" name="wave40_direction_deg"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave41_amplitude"/>
+            <Variable simulator="vessel" name="wave41_amplitude"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave41_omega"/>
+            <Variable simulator="vessel" name="wave41_omega"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave41_phase"/>
+            <Variable simulator="vessel" name="wave41_phase"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave41_direction_deg"/>
+            <Variable simulator="vessel" name="wave41_direction_deg"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave42_amplitude"/>
+            <Variable simulator="vessel" name="wave42_amplitude"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave42_omega"/>
+            <Variable simulator="vessel" name="wave42_omega"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave42_phase"/>
+            <Variable simulator="vessel" name="wave42_phase"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave42_direction_deg"/>
+            <Variable simulator="vessel" name="wave42_direction_deg"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave43_amplitude"/>
+            <Variable simulator="vessel" name="wave43_amplitude"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave43_omega"/>
+            <Variable simulator="vessel" name="wave43_omega"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave43_phase"/>
+            <Variable simulator="vessel" name="wave43_phase"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave43_direction_deg"/>
+            <Variable simulator="vessel" name="wave43_direction_deg"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave44_amplitude"/>
+            <Variable simulator="vessel" name="wave44_amplitude"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave44_omega"/>
+            <Variable simulator="vessel" name="wave44_omega"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave44_phase"/>
+            <Variable simulator="vessel" name="wave44_phase"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave44_direction_deg"/>
+            <Variable simulator="vessel" name="wave44_direction_deg"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave45_amplitude"/>
+            <Variable simulator="vessel" name="wave45_amplitude"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave45_omega"/>
+            <Variable simulator="vessel" name="wave45_omega"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave45_phase"/>
+            <Variable simulator="vessel" name="wave45_phase"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave45_direction_deg"/>
+            <Variable simulator="vessel" name="wave45_direction_deg"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave46_amplitude"/>
+            <Variable simulator="vessel" name="wave46_amplitude"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave46_omega"/>
+            <Variable simulator="vessel" name="wave46_omega"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave46_phase"/>
+            <Variable simulator="vessel" name="wave46_phase"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave46_direction_deg"/>
+            <Variable simulator="vessel" name="wave46_direction_deg"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave47_amplitude"/>
+            <Variable simulator="vessel" name="wave47_amplitude"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave47_omega"/>
+            <Variable simulator="vessel" name="wave47_omega"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave47_phase"/>
+            <Variable simulator="vessel" name="wave47_phase"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave47_direction_deg"/>
+            <Variable simulator="vessel" name="wave47_direction_deg"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave48_amplitude"/>
+            <Variable simulator="vessel" name="wave48_amplitude"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave48_omega"/>
+            <Variable simulator="vessel" name="wave48_omega"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave48_phase"/>
+            <Variable simulator="vessel" name="wave48_phase"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave48_direction_deg"/>
+            <Variable simulator="vessel" name="wave48_direction_deg"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave49_amplitude"/>
+            <Variable simulator="vessel" name="wave49_amplitude"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave49_omega"/>
+            <Variable simulator="vessel" name="wave49_omega"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave49_phase"/>
+            <Variable simulator="vessel" name="wave49_phase"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave49_direction_deg"/>
+            <Variable simulator="vessel" name="wave49_direction_deg"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave50_amplitude"/>
+            <Variable simulator="vessel" name="wave50_amplitude"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave50_omega"/>
+            <Variable simulator="vessel" name="wave50_omega"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave50_phase"/>
+            <Variable simulator="vessel" name="wave50_phase"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave50_direction_deg"/>
+            <Variable simulator="vessel" name="wave50_direction_deg"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave51_amplitude"/>
+            <Variable simulator="vessel" name="wave51_amplitude"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave51_omega"/>
+            <Variable simulator="vessel" name="wave51_omega"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave51_phase"/>
+            <Variable simulator="vessel" name="wave51_phase"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave51_direction_deg"/>
+            <Variable simulator="vessel" name="wave51_direction_deg"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave52_amplitude"/>
+            <Variable simulator="vessel" name="wave52_amplitude"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave52_omega"/>
+            <Variable simulator="vessel" name="wave52_omega"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave52_phase"/>
+            <Variable simulator="vessel" name="wave52_phase"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave52_direction_deg"/>
+            <Variable simulator="vessel" name="wave52_direction_deg"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave53_amplitude"/>
+            <Variable simulator="vessel" name="wave53_amplitude"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave53_omega"/>
+            <Variable simulator="vessel" name="wave53_omega"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave53_phase"/>
+            <Variable simulator="vessel" name="wave53_phase"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave53_direction_deg"/>
+            <Variable simulator="vessel" name="wave53_direction_deg"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave54_amplitude"/>
+            <Variable simulator="vessel" name="wave54_amplitude"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave54_omega"/>
+            <Variable simulator="vessel" name="wave54_omega"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave54_phase"/>
+            <Variable simulator="vessel" name="wave54_phase"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave54_direction_deg"/>
+            <Variable simulator="vessel" name="wave54_direction_deg"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave55_amplitude"/>
+            <Variable simulator="vessel" name="wave55_amplitude"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave55_omega"/>
+            <Variable simulator="vessel" name="wave55_omega"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave55_phase"/>
+            <Variable simulator="vessel" name="wave55_phase"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave55_direction_deg"/>
+            <Variable simulator="vessel" name="wave55_direction_deg"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave56_amplitude"/>
+            <Variable simulator="vessel" name="wave56_amplitude"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave56_omega"/>
+            <Variable simulator="vessel" name="wave56_omega"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave56_phase"/>
+            <Variable simulator="vessel" name="wave56_phase"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave56_direction_deg"/>
+            <Variable simulator="vessel" name="wave56_direction_deg"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave57_amplitude"/>
+            <Variable simulator="vessel" name="wave57_amplitude"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave57_omega"/>
+            <Variable simulator="vessel" name="wave57_omega"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave57_phase"/>
+            <Variable simulator="vessel" name="wave57_phase"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave57_direction_deg"/>
+            <Variable simulator="vessel" name="wave57_direction_deg"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave58_amplitude"/>
+            <Variable simulator="vessel" name="wave58_amplitude"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave58_omega"/>
+            <Variable simulator="vessel" name="wave58_omega"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave58_phase"/>
+            <Variable simulator="vessel" name="wave58_phase"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave58_direction_deg"/>
+            <Variable simulator="vessel" name="wave58_direction_deg"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave59_amplitude"/>
+            <Variable simulator="vessel" name="wave59_amplitude"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave59_omega"/>
+            <Variable simulator="vessel" name="wave59_omega"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave59_phase"/>
+            <Variable simulator="vessel" name="wave59_phase"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave59_direction_deg"/>
+            <Variable simulator="vessel" name="wave59_direction_deg"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave60_amplitude"/>
+            <Variable simulator="vessel" name="wave60_amplitude"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave60_omega"/>
+            <Variable simulator="vessel" name="wave60_omega"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave60_phase"/>
+            <Variable simulator="vessel" name="wave60_phase"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave60_direction_deg"/>
+            <Variable simulator="vessel" name="wave60_direction_deg"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave61_amplitude"/>
+            <Variable simulator="vessel" name="wave61_amplitude"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave61_omega"/>
+            <Variable simulator="vessel" name="wave61_omega"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave61_phase"/>
+            <Variable simulator="vessel" name="wave61_phase"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave61_direction_deg"/>
+            <Variable simulator="vessel" name="wave61_direction_deg"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave62_amplitude"/>
+            <Variable simulator="vessel" name="wave62_amplitude"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave62_omega"/>
+            <Variable simulator="vessel" name="wave62_omega"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave62_phase"/>
+            <Variable simulator="vessel" name="wave62_phase"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave62_direction_deg"/>
+            <Variable simulator="vessel" name="wave62_direction_deg"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave63_amplitude"/>
+            <Variable simulator="vessel" name="wave63_amplitude"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave63_omega"/>
+            <Variable simulator="vessel" name="wave63_omega"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave63_phase"/>
+            <Variable simulator="vessel" name="wave63_phase"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave63_direction_deg"/>
+            <Variable simulator="vessel" name="wave63_direction_deg"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave64_amplitude"/>
+            <Variable simulator="vessel" name="wave64_amplitude"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave64_omega"/>
+            <Variable simulator="vessel" name="wave64_omega"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave64_phase"/>
+            <Variable simulator="vessel" name="wave64_phase"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave64_direction_deg"/>
+            <Variable simulator="vessel" name="wave64_direction_deg"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave65_amplitude"/>
+            <Variable simulator="vessel" name="wave65_amplitude"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave65_omega"/>
+            <Variable simulator="vessel" name="wave65_omega"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave65_phase"/>
+            <Variable simulator="vessel" name="wave65_phase"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave65_direction_deg"/>
+            <Variable simulator="vessel" name="wave65_direction_deg"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave66_amplitude"/>
+            <Variable simulator="vessel" name="wave66_amplitude"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave66_omega"/>
+            <Variable simulator="vessel" name="wave66_omega"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave66_phase"/>
+            <Variable simulator="vessel" name="wave66_phase"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave66_direction_deg"/>
+            <Variable simulator="vessel" name="wave66_direction_deg"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave67_amplitude"/>
+            <Variable simulator="vessel" name="wave67_amplitude"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave67_omega"/>
+            <Variable simulator="vessel" name="wave67_omega"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave67_phase"/>
+            <Variable simulator="vessel" name="wave67_phase"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave67_direction_deg"/>
+            <Variable simulator="vessel" name="wave67_direction_deg"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave68_amplitude"/>
+            <Variable simulator="vessel" name="wave68_amplitude"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave68_omega"/>
+            <Variable simulator="vessel" name="wave68_omega"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave68_phase"/>
+            <Variable simulator="vessel" name="wave68_phase"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave68_direction_deg"/>
+            <Variable simulator="vessel" name="wave68_direction_deg"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave69_amplitude"/>
+            <Variable simulator="vessel" name="wave69_amplitude"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave69_omega"/>
+            <Variable simulator="vessel" name="wave69_omega"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave69_phase"/>
+            <Variable simulator="vessel" name="wave69_phase"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave69_direction_deg"/>
+            <Variable simulator="vessel" name="wave69_direction_deg"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave70_amplitude"/>
+            <Variable simulator="vessel" name="wave70_amplitude"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave70_omega"/>
+            <Variable simulator="vessel" name="wave70_omega"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave70_phase"/>
+            <Variable simulator="vessel" name="wave70_phase"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave70_direction_deg"/>
+            <Variable simulator="vessel" name="wave70_direction_deg"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave71_amplitude"/>
+            <Variable simulator="vessel" name="wave71_amplitude"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave71_omega"/>
+            <Variable simulator="vessel" name="wave71_omega"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave71_phase"/>
+            <Variable simulator="vessel" name="wave71_phase"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave71_direction_deg"/>
+            <Variable simulator="vessel" name="wave71_direction_deg"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave72_amplitude"/>
+            <Variable simulator="vessel" name="wave72_amplitude"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave72_omega"/>
+            <Variable simulator="vessel" name="wave72_omega"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave72_phase"/>
+            <Variable simulator="vessel" name="wave72_phase"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave72_direction_deg"/>
+            <Variable simulator="vessel" name="wave72_direction_deg"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave73_amplitude"/>
+            <Variable simulator="vessel" name="wave73_amplitude"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave73_omega"/>
+            <Variable simulator="vessel" name="wave73_omega"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave73_phase"/>
+            <Variable simulator="vessel" name="wave73_phase"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave73_direction_deg"/>
+            <Variable simulator="vessel" name="wave73_direction_deg"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave74_amplitude"/>
+            <Variable simulator="vessel" name="wave74_amplitude"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave74_omega"/>
+            <Variable simulator="vessel" name="wave74_omega"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave74_phase"/>
+            <Variable simulator="vessel" name="wave74_phase"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave74_direction_deg"/>
+            <Variable simulator="vessel" name="wave74_direction_deg"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave75_amplitude"/>
+            <Variable simulator="vessel" name="wave75_amplitude"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave75_omega"/>
+            <Variable simulator="vessel" name="wave75_omega"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave75_phase"/>
+            <Variable simulator="vessel" name="wave75_phase"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave75_direction_deg"/>
+            <Variable simulator="vessel" name="wave75_direction_deg"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave76_amplitude"/>
+            <Variable simulator="vessel" name="wave76_amplitude"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave76_omega"/>
+            <Variable simulator="vessel" name="wave76_omega"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave76_phase"/>
+            <Variable simulator="vessel" name="wave76_phase"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave76_direction_deg"/>
+            <Variable simulator="vessel" name="wave76_direction_deg"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave77_amplitude"/>
+            <Variable simulator="vessel" name="wave77_amplitude"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave77_omega"/>
+            <Variable simulator="vessel" name="wave77_omega"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave77_phase"/>
+            <Variable simulator="vessel" name="wave77_phase"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave77_direction_deg"/>
+            <Variable simulator="vessel" name="wave77_direction_deg"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave78_amplitude"/>
+            <Variable simulator="vessel" name="wave78_amplitude"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave78_omega"/>
+            <Variable simulator="vessel" name="wave78_omega"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave78_phase"/>
+            <Variable simulator="vessel" name="wave78_phase"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave78_direction_deg"/>
+            <Variable simulator="vessel" name="wave78_direction_deg"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave79_amplitude"/>
+            <Variable simulator="vessel" name="wave79_amplitude"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave79_omega"/>
+            <Variable simulator="vessel" name="wave79_omega"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave79_phase"/>
+            <Variable simulator="vessel" name="wave79_phase"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave79_direction_deg"/>
+            <Variable simulator="vessel" name="wave79_direction_deg"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave80_amplitude"/>
+            <Variable simulator="vessel" name="wave80_amplitude"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave80_omega"/>
+            <Variable simulator="vessel" name="wave80_omega"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave80_phase"/>
+            <Variable simulator="vessel" name="wave80_phase"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave80_direction_deg"/>
+            <Variable simulator="vessel" name="wave80_direction_deg"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave81_amplitude"/>
+            <Variable simulator="vessel" name="wave81_amplitude"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave81_omega"/>
+            <Variable simulator="vessel" name="wave81_omega"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave81_phase"/>
+            <Variable simulator="vessel" name="wave81_phase"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave81_direction_deg"/>
+            <Variable simulator="vessel" name="wave81_direction_deg"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave82_amplitude"/>
+            <Variable simulator="vessel" name="wave82_amplitude"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave82_omega"/>
+            <Variable simulator="vessel" name="wave82_omega"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave82_phase"/>
+            <Variable simulator="vessel" name="wave82_phase"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave82_direction_deg"/>
+            <Variable simulator="vessel" name="wave82_direction_deg"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave83_amplitude"/>
+            <Variable simulator="vessel" name="wave83_amplitude"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave83_omega"/>
+            <Variable simulator="vessel" name="wave83_omega"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave83_phase"/>
+            <Variable simulator="vessel" name="wave83_phase"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave83_direction_deg"/>
+            <Variable simulator="vessel" name="wave83_direction_deg"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave84_amplitude"/>
+            <Variable simulator="vessel" name="wave84_amplitude"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave84_omega"/>
+            <Variable simulator="vessel" name="wave84_omega"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave84_phase"/>
+            <Variable simulator="vessel" name="wave84_phase"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave84_direction_deg"/>
+            <Variable simulator="vessel" name="wave84_direction_deg"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave85_amplitude"/>
+            <Variable simulator="vessel" name="wave85_amplitude"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave85_omega"/>
+            <Variable simulator="vessel" name="wave85_omega"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave85_phase"/>
+            <Variable simulator="vessel" name="wave85_phase"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave85_direction_deg"/>
+            <Variable simulator="vessel" name="wave85_direction_deg"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave86_amplitude"/>
+            <Variable simulator="vessel" name="wave86_amplitude"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave86_omega"/>
+            <Variable simulator="vessel" name="wave86_omega"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave86_phase"/>
+            <Variable simulator="vessel" name="wave86_phase"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave86_direction_deg"/>
+            <Variable simulator="vessel" name="wave86_direction_deg"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave87_amplitude"/>
+            <Variable simulator="vessel" name="wave87_amplitude"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave87_omega"/>
+            <Variable simulator="vessel" name="wave87_omega"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave87_phase"/>
+            <Variable simulator="vessel" name="wave87_phase"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave87_direction_deg"/>
+            <Variable simulator="vessel" name="wave87_direction_deg"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave88_amplitude"/>
+            <Variable simulator="vessel" name="wave88_amplitude"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave88_omega"/>
+            <Variable simulator="vessel" name="wave88_omega"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave88_phase"/>
+            <Variable simulator="vessel" name="wave88_phase"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave88_direction_deg"/>
+            <Variable simulator="vessel" name="wave88_direction_deg"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave89_amplitude"/>
+            <Variable simulator="vessel" name="wave89_amplitude"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave89_omega"/>
+            <Variable simulator="vessel" name="wave89_omega"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave89_phase"/>
+            <Variable simulator="vessel" name="wave89_phase"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave89_direction_deg"/>
+            <Variable simulator="vessel" name="wave89_direction_deg"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave90_amplitude"/>
+            <Variable simulator="vessel" name="wave90_amplitude"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave90_omega"/>
+            <Variable simulator="vessel" name="wave90_omega"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave90_phase"/>
+            <Variable simulator="vessel" name="wave90_phase"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave90_direction_deg"/>
+            <Variable simulator="vessel" name="wave90_direction_deg"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave91_amplitude"/>
+            <Variable simulator="vessel" name="wave91_amplitude"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave91_omega"/>
+            <Variable simulator="vessel" name="wave91_omega"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave91_phase"/>
+            <Variable simulator="vessel" name="wave91_phase"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave91_direction_deg"/>
+            <Variable simulator="vessel" name="wave91_direction_deg"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave92_amplitude"/>
+            <Variable simulator="vessel" name="wave92_amplitude"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave92_omega"/>
+            <Variable simulator="vessel" name="wave92_omega"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave92_phase"/>
+            <Variable simulator="vessel" name="wave92_phase"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave92_direction_deg"/>
+            <Variable simulator="vessel" name="wave92_direction_deg"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave93_amplitude"/>
+            <Variable simulator="vessel" name="wave93_amplitude"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave93_omega"/>
+            <Variable simulator="vessel" name="wave93_omega"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave93_phase"/>
+            <Variable simulator="vessel" name="wave93_phase"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave93_direction_deg"/>
+            <Variable simulator="vessel" name="wave93_direction_deg"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave94_amplitude"/>
+            <Variable simulator="vessel" name="wave94_amplitude"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave94_omega"/>
+            <Variable simulator="vessel" name="wave94_omega"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave94_phase"/>
+            <Variable simulator="vessel" name="wave94_phase"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave94_direction_deg"/>
+            <Variable simulator="vessel" name="wave94_direction_deg"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave95_amplitude"/>
+            <Variable simulator="vessel" name="wave95_amplitude"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave95_omega"/>
+            <Variable simulator="vessel" name="wave95_omega"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave95_phase"/>
+            <Variable simulator="vessel" name="wave95_phase"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave95_direction_deg"/>
+            <Variable simulator="vessel" name="wave95_direction_deg"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave96_amplitude"/>
+            <Variable simulator="vessel" name="wave96_amplitude"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave96_omega"/>
+            <Variable simulator="vessel" name="wave96_omega"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave96_phase"/>
+            <Variable simulator="vessel" name="wave96_phase"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave96_direction_deg"/>
+            <Variable simulator="vessel" name="wave96_direction_deg"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave97_amplitude"/>
+            <Variable simulator="vessel" name="wave97_amplitude"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave97_omega"/>
+            <Variable simulator="vessel" name="wave97_omega"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave97_phase"/>
+            <Variable simulator="vessel" name="wave97_phase"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave97_direction_deg"/>
+            <Variable simulator="vessel" name="wave97_direction_deg"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave98_amplitude"/>
+            <Variable simulator="vessel" name="wave98_amplitude"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave98_omega"/>
+            <Variable simulator="vessel" name="wave98_omega"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave98_phase"/>
+            <Variable simulator="vessel" name="wave98_phase"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave98_direction_deg"/>
+            <Variable simulator="vessel" name="wave98_direction_deg"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave99_amplitude"/>
+            <Variable simulator="vessel" name="wave99_amplitude"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave99_omega"/>
+            <Variable simulator="vessel" name="wave99_omega"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave99_phase"/>
+            <Variable simulator="vessel" name="wave99_phase"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave99_direction_deg"/>
+            <Variable simulator="vessel" name="wave99_direction_deg"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave100_amplitude"/>
+            <Variable simulator="vessel" name="wave100_amplitude"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave100_omega"/>
+            <Variable simulator="vessel" name="wave100_omega"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave100_phase"/>
+            <Variable simulator="vessel" name="wave100_phase"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="waves" name="wave100_direction_deg"/>
+            <Variable simulator="vessel" name="wave100_direction_deg"/>
+        </VariableConnection>
+
+        <!-- dynamics -> vessel: delivered thruster force, body frame -->
+        <VariableConnection>
+            <Variable simulator="dynamics" name="X"/>
+            <Variable simulator="vessel" name="X_thrusters"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="dynamics" name="Y"/>
+            <Variable simulator="vessel" name="Y_thrusters"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="dynamics" name="N"/>
+            <Variable simulator="vessel" name="N_thrusters"/>
+        </VariableConnection>
+
+        <!-- vessel -> kalman_filter: measured position and heading (total LF + WF motion) -->
+        <VariableConnection>
+            <Variable simulator="vessel" name="north"/>
+            <Variable simulator="kalman_filter" name="north_meas"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="vessel" name="east"/>
+            <Variable simulator="kalman_filter" name="east_meas"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="vessel" name="yaw"/>
+            <Variable simulator="kalman_filter" name="psi_meas"/>
+        </VariableConnection>
+
+        <!-- vessel -> kalman_filter: wind feed-forward, body frame -->
+        <!-- Need to check if it is better to get from somewhere else!!!!!! -->
+
+        <VariableConnection>
+            <Variable simulator="vessel" name="wind_X"/>
             <Variable simulator="kalman_filter" name="tau_wind_x"/>
         </VariableConnection>
         <VariableConnection>
-            <Variable simulator="windloads" name="Y"/>
+            <Variable simulator="vessel" name="wind_Y"/>
             <Variable simulator="kalman_filter" name="tau_wind_y"/>
         </VariableConnection>
         <VariableConnection>
-            <Variable simulator="windloads" name="N"/>
+            <Variable simulator="vessel" name="wind_N"/>
             <Variable simulator="kalman_filter" name="tau_wind_n"/>
         </VariableConnection>
 
-        <!-- kalman_filter -> dp_controller (estimates) -->
+        <!-- dynamics -> kalman_filter: delivered thruster force, body frame -->
+        <VariableConnection>
+            <Variable simulator="dynamics" name="X"/>
+            <Variable simulator="kalman_filter" name="tau_thr_x"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="dynamics" name="Y"/>
+            <Variable simulator="kalman_filter" name="tau_thr_y"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="dynamics" name="N"/>
+            <Variable simulator="kalman_filter" name="tau_thr_n"/>
+        </VariableConnection>
+
+        <!-- kalman_filter -> dp_controller: estimates -->
         <VariableConnection>
             <Variable simulator="kalman_filter" name="north_hat"/>
             <Variable simulator="dp_controller" name="north_hat"/>
@@ -167,7 +1848,7 @@
             <Variable simulator="dp_controller" name="r_hat"/>
         </VariableConnection>
 
-        <!-- dp_controller -> allocation (commanded force, body frame) -->
+        <!-- dp_controller -> allocation: commanded force, body frame -->
         <VariableConnection>
             <Variable simulator="dp_controller" name="tau_X"/>
             <Variable simulator="allocation" name="tau_X"/>
@@ -246,19 +1927,6 @@
             <Variable simulator="allocation" name="thruster8_azimuth_command_deg"/>
             <Variable simulator="dynamics" name="thruster8_azimuth_command_deg"/>
         </VariableConnection>
-
-        <!-- environment -> waves (sea state) -->
-        <VariableConnection>
-            <Variable simulator="environment" name="H_s"/>
-            <Variable simulator="waves" name="H_s"/>
-        </VariableConnection>
-        <VariableConnection>
-            <Variable simulator="environment" name="T_p"/>
-            <Variable simulator="waves" name="T_p"/>
-        </VariableConnection>
-        <VariableConnection>
-            <Variable simulator="environment" name="wave_direction_deg"/>
-            <Variable simulator="waves" name="wave_direction_deg"/>
-        </VariableConnection>
     </Connections>
 </OspSystemStructure>
+

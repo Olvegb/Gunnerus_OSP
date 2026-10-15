@@ -44,15 +44,19 @@ del execution, observer
 
 # 6. Show the result.
 environment = pd.read_csv(next(RESULTS.glob("environment_*.csv")), index_col="Time")
-result = pd.read_csv(next(RESULTS.glob("windloads_*.csv")), index_col="Time")
+vessel = pd.read_csv(next(RESULTS.glob("vessel_*.csv")), index_col="Time")
+wind_speed = (environment["mean_wind_speed"] + environment["slowly_varying_wind_speed"]
+              + environment["gust_wind_speed"]).iloc[-1]
 print(f"Vessel:  {config['vessel']['type']}, simulated for {duration} s")
-print(f"Wind:    {config['wind']['mean_speed']} m/s from {config['wind']['direction_deg']} deg (earth frame)")
-print(f"Heading: {environment['heading_deg'].iloc[-1]} deg")
-print(f"Relative wind at WindLoads: {result['wind_speed'].iloc[-1]} m/s "
-      f"from {result['relative_wind_direction_deg'].iloc[-1]} deg off the bow")
-print("\nWind loads at the end of the simulation:")
-for name, unit in [("X", "N"), ("Y", "N"), ("N", "Nm"), ("K", "Nm")]:
-    print(f"  {name} = {result[name].iloc[-1]:12.1f} {unit}")
+print(f"Wind:    {wind_speed:.1f} m/s from {environment['wind_direction_deg'].iloc[-1]:.1f} deg (NED, at the end)")
+print(f"Current: {environment['current_speed'].iloc[-1]} m/s towards "
+      f"{environment['current_direction_deg'].iloc[-1]} deg (NED)")
+
+print("\nVessel at the end of the simulation:")
+for name, unit in [("north", "m"), ("east", "m"), ("yaw", "rad")]:
+    print(f"  {name:14} = {vessel[name].iloc[-1]:12.3f} {unit}")
+for name, unit in [("wind_X", "N"), ("wind_Y", "N"), ("wind_N", "Nm")]:
+    print(f"  {name:14} = {vessel[name].iloc[-1]:12.1f} {unit}")
 
 kalman = pd.read_csv(next(RESULTS.glob("kalman_filter_*.csv")), index_col="Time")
 print("\nKalman filter estimates at the end of the simulation:")

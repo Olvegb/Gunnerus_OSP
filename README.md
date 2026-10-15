@@ -1,23 +1,32 @@
-# Config_path_sim – co-simulation where the FMU reads the config file itself
+# Gunnerus_OSP_sim – DP co-simulation where each FMU reads the config file itself
 
-A small, complete simulation program with seven FMUs:
+A complete DP (dynamic positioning) simulator in OSP, with one closed loop of seven FMUs:
 
-- **Environment** turns the wind in the earth frame (from `config.toml`) and the vessel heading into the wind seen from the vessel. It also outputs the sea state (H_s, T_p, wave direction).
-- **WindLoads** (from `FMU_try`) calculates the wind forces and moments on the vessel with the Blendermann method.
-- **ExtendedKalmanFilter** estimates the vessel's position, velocity and slowly varying disturbances (bias) from position and heading measurements. See [The Kalman filter](#the-kalman-filter).
-- **ThrustAllocation** and **ThrusterDynamics** turn a commanded force τ = (X, Y, N) into thrust and azimuth commands per thruster, and then into the force the thrusters actually give the vessel. See [docs/thruster_fmus.md](docs/thruster_fmus.md).
-- **DPController** is a simple PID that holds the vessel at the set-point in `config.toml`: it takes the estimates from ExtendedKalmanFilter and gives the commanded force τ = (X, Y, N) to ThrustAllocation. See [docs/dp_controller.md](docs/dp_controller.md).
-- **Waves** turns the sea state from Environment (H_s, T_p, wave direction) into 100 regular wave components (amplitude, frequency, phase, direction) for the hull FMU. Regular or irregular (long- or short-crested) sea. See [docs/waves_fmu.md](docs/waves_fmu.md).
+- **Environment** gives the wind (mean, slowly varying and gust speed, slowly varying direction), the sea state (H_s, T_p, wave direction) and the current, all in the earth-fixed NED frame. See [docs/environment_fmu.md](docs/environment_fmu.md).
+- **Waves** turns the sea state into 100 regular wave components (amplitude, frequency, phase, direction). Regular or irregular (long- or short-crested) sea. See [docs/waves_fmu.md](docs/waves_fmu.md).
+- **VesselBlock** is the 6-DOF hull: low-frequency (LF) and wave-frequency (WF) motion, with wind loads (Blendermann), wave loads and current calculated inside. See [docs/vessel_fmu.md](docs/vessel_fmu.md).
+- **ExtendedKalmanFilter** estimates the vessel's position, velocity and slowly varying disturbances (bias) from the measured position and heading. See [docs/kalman_filter.md](docs/kalman_filter.md).
+- **DPController** is a simple PID that holds the vessel at the set-point in `config.toml`. See [docs/dp_controller.md](docs/dp_controller.md).
+- **ThrustAllocation** and **ThrusterDynamics** turn the commanded force τ = (X, Y, N) into thrust and azimuth commands per thruster, and then into the force the thrusters actually give the vessel. See [docs/thruster_fmus.md](docs/thruster_fmus.md).
+
+Plus **Test**, a minimal example FMU (output = input × test) that is not connected to anything.
 
 Every constant is in one file, `config.toml`. Each FMU reads that file itself when the simulation starts, so you can change constants and run again **without rebuilding the FMUs**.
 
 This is option **B3** in [Configfile_ways.md](../Configfile_ways.md).
 
+> **Note:** the vessel data in `[vessel_fmu]` (`vessel_cosim/example_test_config.json`) and the 3-DOF matrices in `[vessel]` are **synthetic placeholder values** for an 88 m OSV, not RV Gunnerus.
+
 ## Documentation
 
-- [docs/thruster_fmus.md](docs/thruster_fmus.md): ThrustAllocation and ThrusterDynamics: inputs and outputs, `config.toml` keys, how to connect them.
-- [docs/dp_controller.md](docs/dp_controller.md): DPController: inputs and outputs, the control law, `config.toml` keys.
-- [docs/waves_fmu.md](docs/waves_fmu.md): Waves: inputs and outputs, `config.toml` keys, the wave elevation the hull FMU must use.
+| Doc | FMU |
+|---|---|
+| [docs/environment_fmu.md](docs/environment_fmu.md) | Environment: wind, sea state and current models, `config.toml` keys |
+| [docs/waves_fmu.md](docs/waves_fmu.md) | Waves: inputs and outputs, `config.toml` keys, the wave elevation the hull must use |
+| [docs/vessel_fmu.md](docs/vessel_fmu.md) | VesselBlock: the hull model and its data file |
+| [docs/kalman_filter.md](docs/kalman_filter.md) | ExtendedKalmanFilter: states, process and measurement model, tuning |
+| [docs/dp_controller.md](docs/dp_controller.md) | DPController: the control law, gains, `config.toml` keys |
+| [docs/thruster_fmus.md](docs/thruster_fmus.md) | ThrustAllocation and ThrusterDynamics: allocation, dynamics, power, `config.toml` keys |
 
 ## Getting started
 
@@ -26,159 +35,163 @@ Run from this folder in the VS Code terminal:
 ```powershell
 conda activate master
 pip install -r requirements.txt   # once: the libraries the simulation needs
-python build_fmus.py       # creates one .fmu in fmus/ for each .py in models/
-python run_simulation.py   # runs the simulation and saves the results to results/
+python build_fmus.py              # creates one .fmu in fmus/ for each .py in models/
+python run_simulation.py          # runs the simulation and saves the results to results/
 ```
 
-Expected output:
+Expected output (10 s, default `config.toml`):
 
 ```
 Vessel:  offshore_supply_vessel, simulated for 10.0 s
-Wind:    13.8 m/s from 45.0 deg (earth frame)
-Heading: 0 deg
-Relative wind at WindLoads: 13.8 m/s from 45 deg off the bow
+Wind:    14.6 m/s from 97.3 deg (NED, at the end)
+Current: 0.5 m/s towards 0 deg (NED)
 
-Wind loads at the end of the simulation:
-  X =     -16046.4 N
-  Y =      65644.3 N
-  N =    1604390.0 Nm
-  K =     236320.0 Nm
+Vessel at the end of the simulation:
+  north          =        0.316 m
+  east           =       -0.398 m
+  yaw            =       -0.011 rad
+  wind_X         =       3936.3 N
+  wind_Y         =     -82860.4 N
+  wind_N         =    -820747.0 Nm
+
+Kalman filter estimates at the end of the simulation:
+  north_hat =       0.2918 m
+  ...
+
+Thrusters at the end of the simulation (utilisation 0.140, saturated False):
+  X              =      10413.1 N
+  Y              =      65189.0 N
+  N              =    -742876.0 Nm
+  total_power_kw =        116.5 kW
 ```
 
-**Try it:**
-- Change `type = "offshore_supply_vessel"` to `type = "ferry"` in `config.toml`, and run `python run_simulation.py` again without rebuilding. The loads change.
-- Change `heading_deg` from `0.0` to `30.0` in `OspSystemStructure.xml`. The relative wind becomes 15 deg (45 − 30).
+The wind comes from the east, so it pushes the vessel west (east < 0) and gives a force to port (wind_Y < 0). The current pushes it north. The thrusters push back.
+
+**Try it** (no rebuild needed, only `python run_simulation.py` again):
+- Set `duration = 300.0` in `[simulation]` and look at `results/vessel_*.csv`: the vessel drifts about 4 m in the first minute, and the controller then brings it back to within 1 m of the set-point.
+- Switch the gusts off with `n_components = 0` in `[wind.gust]`, or the current off with `speed = 0.0` in `[current]`.
+- Change `north_ref` in `[controller]` and watch the vessel move to the new set-point.
+
+## Commands
+
+All commands are run from this folder, with the `master` environment active (`conda activate master`).
+
+| What | Command |
+|---|---|
+| Install the libraries (once) | `pip install -r requirements.txt` |
+| Install scipy with OpenBLAS (if missing) | `conda install -n master scipy=1.14.1 "libblas=*=*openblas"` |
+| Build every FMU | `python build_fmus.py` |
+| Build one FMU | `python -m pythonfmu build -f models/environment.py thruster_cosim wave_cosim vessel_cosim -d fmus` |
+| Run the simulation (Python) | `python run_simulation.py` |
+| Run the simulation (cosim CLI) | `cosim run OspSystemStructure.xml -d 10 --output-dir results` |
+| Waves checks | `python tests/waves/check_waves_fmu.py` (and the other scripts in `tests/waves/`) |
+| Controller checks | `python tests/controller/check_dp_controller.py`, `python tests/controller/check_closed_loop.py` |
+| Vessel check (needs fmpy) | `python tests/vessel/check_vessel_fmu.py` |
+
+**Rebuild only when a `.py` file changes** (in `models/` or a `*_cosim/` package). Changes to `config.toml` and `OspSystemStructure.xml` need no rebuild.
+
+When building one FMU by hand, include the `*_cosim/` packages the model imports (`thruster_cosim`, `wave_cosim`, `vessel_cosim`). `build_fmus.py` does this for every model, and also puts this folder on `PYTHONPATH` so pythonfmu can import the packages while building.
 
 ## The files
 
 | File | What it does | When do you change it? |
 |---|---|---|
-| `config.toml` | **Every constant**: wind, vessel data, air density, Blendermann coefficients, simulation length | When you want to change a value. No rebuild. |
-| `models/environment.py` | Environment FMU. Reads the wind from `config.toml`, takes the heading as input, outputs wind speed and relative wind direction. | When the logic changes. Needs a rebuild. |
-| `models/windloads.py` | WindLoads FMU. Reads `config.toml` and calculates the wind loads. | When the logic changes. Needs a rebuild. |
-| `models/kalman_filter.py` | ExtendedKalmanFilter FMU. Reads the vessel matrices and filter settings from `config.toml`, estimates position, velocity and bias. | When the logic changes. Needs a rebuild. |
-| `models/thrust_allocation.py`, `models/thruster_dynamics.py` | ThrustAllocation and ThrusterDynamics FMUs. Thin wrappers around `thruster_cosim/`; read `[allocation]`, `[[power_sources]]` and `[[thrusters]]` from `config.toml`. | When the logic changes. Needs a rebuild. |
-| `thruster_cosim/` | The thruster logic (allocation LP, dynamics, power, forbidden zones). Built into every FMU's `resources/` | When the logic changes. Needs a rebuild. |
-| `models/dp_controller.py` | DPController FMU. Reads `[controller]` and the vessel matrices in `[vessel]` from `config.toml`, takes the Kalman filter estimates as inputs, outputs the commanded force τ. | When the logic changes. Needs a rebuild. |
-| `models/waves.py` | Waves FMU. Thin wrapper around `wave_cosim/`; reads `[waves]` from `config.toml`, takes H_s, T_p and wave direction as inputs, outputs the wave components. | When the logic changes. Needs a rebuild. |
-| `wave_cosim/` | The wave logic (spectra, spreading, splitting the sea into wave components). Built into every FMU's `resources/` | When the logic changes. Needs a rebuild. |
-| `tests/waves/` | Check scripts for the Waves FMU and `wave_cosim/`. Run from this folder, e.g. `python tests/waves/check_waves_fmu.py` | When the wave logic changes |
-| `tests/controller/` | Check scripts for the DPController FMU, including a closed-loop check with a simple vessel. Run from this folder, e.g. `python tests/controller/check_closed_loop.py` | When the controller changes |
-| `build_fmus.py` | Turns each `.py` in `models/` into an `.fmu` in `fmus/`, with `thruster_cosim/` and `wave_cosim/` included | Rarely |
-| `requirements.txt` | The Python libraries the simulation needs | When a library is added |
+| `config.toml` | **Every constant**: environment, vessel, controller, filter, thrusters, simulation length | When you want to change a value. No rebuild. |
 | `OspSystemStructure.xml` | Which FMUs are included, how they are connected, step size, and **where the config file is** | When you add FMUs or connections |
-| `run_simulation.py` | Runs the simulation from Python and prints the result | Rarely |
+| `models/environment.py` | Environment FMU. Wind, sea state and current from `config.toml`, NED | When the logic changes. Needs a rebuild. |
+| `models/waves.py` | Waves FMU. Thin wrapper around `wave_cosim/` | When the logic changes. Needs a rebuild. |
+| `models/vessel.py` | VesselBlock FMU. Thin wrapper around `vessel_cosim/` | When the logic changes. Needs a rebuild. |
+| `models/kalman_filter.py` | ExtendedKalmanFilter FMU, everything in one file | When the logic changes. Needs a rebuild. |
+| `models/dp_controller.py` | DPController FMU, everything in one file | When the logic changes. Needs a rebuild. |
+| `models/thrust_allocation.py`, `models/thruster_dynamics.py` | ThrustAllocation and ThrusterDynamics FMUs. Thin wrappers around `thruster_cosim/` | When the logic changes. Needs a rebuild. |
+| `models/test.py` | Test FMU, a minimal example of the set-up | Never |
+| `wave_cosim/`, `vessel_cosim/`, `thruster_cosim/` | The wave, vessel and thruster logic. Built into every FMU's `resources/` | When the logic changes. Needs a rebuild. |
+| `tests/` | Check scripts for waves, controller and vessel | When that logic changes |
+| `docs/` | One document per FMU | When an FMU changes |
+| `build_fmus.py` | Turns each `.py` in `models/` into an `.fmu` in `fmus/`, with the `*_cosim/` packages included | Rarely |
+| `run_simulation.py` | Runs the simulation from Python and prints the result | When you want other output |
+| `requirements.txt` | The Python libraries the simulation needs | When a library is added |
 | `fmus/` | The built FMUs | Created by `build_fmus.py` |
 | `results/` | One CSV file per FMU with every input and output for each time step | Created by `run_simulation.py` |
 
 ## How it fits together
 
 ```
-                          config.toml (constants, read by both FMUs at start-up)
-                         ┌─────────┴──────────┐
-                         ▼                    ▼
- heading_deg ──► Environment FMU ──────► WindLoads FMU ──► X, Y, N, K
- (from XML)        [wind]          wind_speed,       [environment], [vessel],
-                                   relative_wind_    [blendermann]
-                                   direction_deg
-
- ExtendedKalmanFilter ──*_hat──► DPController ──tau_X, tau_Y, tau_N──► ThrustAllocation ──► ThrusterDynamics ──► X, Y, N (not connected yet)
-                                  [controller], [vessel]                    thrust + azimuth command per thruster
-
- Environment ──H_s, T_p, wave_direction_deg──► Waves ──► wave1..wave100 components (not connected yet)
-   [waves] hs, tp, direction_deg                [waves], [waves.*]
+ environment ──► wind (mean, slowly varying, gust, direction), current ──────────────┐
+      │                                                                               │
+      └──► H_s, T_p, wave_direction ──► waves ──► wave<k>_* (k = 1..100) ─────────────┤
+                                                                                      ▼
+ dynamics ──► X, Y, N (delivered thrust, body) ─────────────────────────────────► vessel
+    ▲  │                                                                              │
+    │  └──► tau_thr_x/y/n ──────────────┐                north, east, yaw ────────────┤
+    │                                   ▼                                             │
+    │                             kalman_filter ◄── tau_wind_x/y/n (wind_X/Y/N) ──────┘
+    │                                   │
+    │                                   ▼  north_hat ... r_hat
+    │                             dp_controller
+    │                                   │
+    │                                   ▼  tau_X, tau_Y, tau_N
+    └── thrust + azimuth command ◄── allocation      (8 thruster slots)
 ```
 
 Step by step, when you run `python run_simulation.py`:
 
-1. **The system is loaded.** libcosim reads `OspSystemStructure.xml`, loads both FMUs and sets the start values from `<InitialValues>`: `config_path = "config.toml"` on both, and `heading_deg` on Environment.
-2. **The FMUs read the config file.** Right before the simulation starts, each FMU runs `exit_initialization_mode()` and takes what it needs from `config.toml`. Environment takes `[wind]`. WindLoads takes `[environment]`, `[vessel]` and the row in `[blendermann]` that matches the vessel type.
-3. **The simulation runs.** Every time step (0.1 s):
-   - Environment calculates the relative wind direction, `(wind direction − heading) mod 360`, and the wind speed.
-   - libcosim passes them to WindLoads through the `<VariableConnection>`s.
-   - WindLoads calculates X, Y, N and K.
+1. **The system is loaded.** libcosim reads `OspSystemStructure.xml`, loads every FMU and sets `config_path = "config.toml"` on each.
+2. **The FMUs read the config file.** Right before the simulation starts, each FMU runs `exit_initialization_mode()` and takes what it needs from `config.toml` (see the table at the top of that file).
+3. **The simulation runs.** Every time step (0.1 s), each FMU runs `do_step()`, and libcosim passes the outputs to the inputs through the `<VariableConnection>`s.
 4. **The results are saved** to `results/` (one CSV per FMU), and `run_simulation.py` prints the last values.
 
-### Angle conventions
+### Frames and angle conventions
 
-All angles are in degrees and measured clockwise:
+- **NED** (north, east, down) for the environment and the vessel position. **Body frame** (x forward, y to starboard, z down) for forces, velocities and thruster positions.
+- Angles in `config.toml` and on the environment are in **degrees, clockwise from north**. The vessel's `yaw` and the filter's `psi` are in **radians**.
 
 | Angle | 0° means | 90° means |
 |---|---|---|
 | Wind direction (`[wind] direction_deg`) | wind comes **from** north | wind comes from east |
-| Heading (`heading_deg`) | bow points north | bow points east |
-| Relative wind direction | wind comes from straight ahead | wind comes from starboard |
+| Wave direction (`[waves] direction_deg`) | waves come **from** north | waves come from east |
+| Current direction (`[current] direction_deg`) | current flows **towards** north | current flows towards east |
+| Heading (vessel `yaw`) | bow points north | bow points east |
 
-Example: wind from 45°, heading 30° → the wind comes 15° to starboard of the bow.
-
-## The Kalman filter
-
-`models/kalman_filter.py` is a 3-DOF extended Kalman filter (a simple DP observer, Fossen). It has 9 states:
-
-| States | Meaning | Unit |
-|---|---|---|
-| `north`, `east`, `psi` | position and heading in NED | m, m, rad |
-| `u`, `v`, `r` | velocity in the body frame | m/s, m/s, rad/s |
-| `b_x`, `b_y`, `b_n` | bias in NED: every force the model doesn't know (current, wave drift, model errors) | N, N, Nm |
-
-| Kind | Variables | Source |
-|---|---|---|
-| **Inputs** | `north_meas`, `east_meas`, `psi_meas` | GNSS and gyro. Not connected yet, so 0. Later from the hull FMU. |
-| | `tau_thr_x`, `tau_thr_y`, `tau_thr_n` | Thruster forces, body frame. Not connected yet, so 0. |
-| | `tau_wind_x`, `tau_wind_y`, `tau_wind_n` | Wind forces from WindLoads (feed-forward), body frame. |
-| **Outputs** | `north_hat`, `east_hat`, `psi_hat`, `u_hat`, `v_hat`, `r_hat`, `b_x_hat`, `b_y_hat`, `b_n_hat` | The estimates |
-| **Constants** | `mass_matrix`, `damping_matrix` (in `[vessel]`) | Shared with a future hull FMU. **Placeholder values.** |
-| | `bias_time_constants`, `process_noise`, `measurement_noise`, `initial_covariance` (in `[kalman_filter]`) | Filter tuning |
-
-Each time step it **predicts** the state with the process model and then **corrects** it with the measurement.
-
-**Check that it works:** with the measurements at 0 (the vessel held still at the origin) and the wind pushing, the filter must explain the wind with a bias of the opposite sign. After about 30 s, `b_y_hat` and `b_n_hat` settle at about 97 % of −Y and −N from WindLoads. The bias time constant `T_b` pulls the estimate slightly towards 0, which is why it is not 100 %.
-
-Not included yet: wave-frequency motion (6 extra states in Fossen's DP observer).
+The relative wind (wind seen from the vessel) is calculated inside VesselBlock, from the wind direction, the heading and the vessel's own velocity.
 
 ## Key concepts in the FMU
 
-In `models/windloads.py` the variables fall into four kinds:
+In every FMU in `models/` the variables fall into four kinds. Examples from `models/environment.py`:
 
 | Kind | Example | Where does the value come from? |
 |---|---|---|
 | **Parameter** | `config_path` | Set once before the start, here from the XML |
-| **Input** | `wind_speed`, `heading_deg` | Can change every time step. Comes from another FMU through a connection, or a fixed value from the XML (like `heading_deg` until there is a hull FMU). |
-| **Constant** | `loa`, `cd_t`, `air_density` | Read from `config.toml`. Plain Python variables inside the FMU, not FMI variables. |
-| **Output** | `X`, `Y`, `N`, `K` | Calculated in `do_step()` and can be connected to other FMUs |
+| **Input** | (VesselBlock: `mean_wind_speed`) | Can change every time step. Comes from another FMU through a connection, or a fixed value from the XML |
+| **Constant** | `mean_wind_direction_deg`, the gust components | Read from `config.toml`. Plain Python variables inside the FMU, not FMI variables. |
+| **Output** | `mean_wind_speed`, `wind_direction_deg` | Calculated in `do_step()` and can be connected to other FMUs |
 
 **Why isn't the config file read in `__init__`?** `__init__` also runs when the FMU is *built* (PythonFMU creates an instance to find the variables), and `config_path` is not set at that point. So the file is read in `exit_initialization_mode()`, which only runs when the simulation actually starts.
 
 ## Adding more
 
 **A new constant in an existing FMU:**
-1. Add it to `config.toml`, for example under `[vessel]`.
-2. Add the name to `CONSTANTS` in `models/windloads.py`.
-3. Use it in `do_step()` as `self.name`.
+1. Add it to `config.toml`, in the section that FMU reads.
+2. Read it in `exit_initialization_mode()` and store it as `self.name`.
+3. Use it in `do_step()`.
 4. Run `python build_fmus.py` (because the `.py` file changed).
-
-**Slowly varying wind, gusts etc. in Environment:**
-1. Add the parameters to `[wind]` in `config.toml`, for example `gust_amplitude = 3.0`.
-2. Read them in `exit_initialization_mode()` in `models/environment.py`.
-3. Add the variation in `wind_speed_at(time)`, which only returns the mean wind for now.
-4. Run `python build_fmus.py`.
 
 **A new FMU that uses the same config:**
 1. Write `models/new_model.py` the same way: a `config_path` parameter, and read the file in `exit_initialization_mode()`.
 2. Run `python build_fmus.py`.
 3. Add it to `OspSystemStructure.xml` with its own `<InitialValue variable="config_path">`, and connect inputs and outputs with `<VariableConnection>`.
-
-Once several FMUs read the config file, it is worth moving the reading code into a shared file (for example `models/load_config.py`) and including it when building. That is not done here yet, to keep things simple.
+4. Add a document in `docs/` and a line in the tables above.
 
 ## Good to know
 
-- **Relative path.** `config_path = "config.toml"` is read from the folder the simulation is started from. `run_simulation.py` changes to this folder itself. With cosim CLI you must stand in this folder. With OSP-GUI it is safest to write a full path, such as `C:\Users\...\Config_path_sim\config.toml`, in the XML.
+- **Relative path.** `config_path = "config.toml"` is read from the folder the simulation is started from. `run_simulation.py` changes to this folder itself. With cosim CLI you must stand in this folder. With OSP-GUI it is safest to write a full path, such as `C:\Users\...\Gunnerus_OSP_sim\config.toml`, in the XML.
 - **Save the config file as UTF-8.** VS Code does this automatically.
 - **Python must be available when the FMU runs.** FMUs made with PythonFMU use the Python on the machine. So run with the `master` environment activated, also from the CLI. That Python needs the libraries in `requirements.txt`, including **scipy** for ThrustAllocation.
 - **numpy must use OpenBLAS, not MKL.** On the NTNU virtual PC, `numpy.linalg` with MKL crashes Python without an error message. Fix: `conda install -n master "libblas=*=*openblas"`.
+- **Filenames on Windows.** Git cannot check out a file whose name ends with a dot (such as `README.md.`). If `git pull` fails with `invalid path`, rename the file on GitHub.
 - **The CSV files have 6 significant digits**, for example `1.60439e+06`. That is how libcosim writes them.
 
 
 
 - **cosim CLI:** ` cosim run OspSystemStructure.xml -d 10 --output-dir results`
-- Build FMU commando python -m pythonfmu build -f models/environment.py -d fmus
+- **Build one FMU commando** `python -m pythonfmu build -f models/environment.py -d fmus`
