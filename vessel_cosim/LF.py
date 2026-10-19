@@ -1,4 +1,4 @@
-"""Six-degree-of-freedom low-frequency vessel dynamics, with RK4 integration.
+"""Six-degree-of-freedom low-frequency vessel dynamics, with RK4 integration. 1234
 
 This is the calculation part of the hull, not a standalone FMU or simulation.
 A future hull FMU will read shared config during initialization, create
@@ -13,7 +13,7 @@ Equation:
   (M_RB + A) nu_dot =
       tau - C_RB(nu) nu - C_A(nu_r) nu_r - D nu_r - G eta + A nu_c_dot
   eta_dot = J(eta) nu,   nu_r = nu - nu_c
-  tau = tau_wind + tau_thruster + tau_wave_drift
+  tau = tau_wind + tau_thruster + tau_wave_drift + tau_external
 
 Current is a velocity input, not an extra tau. Assume uniform, constant NED
 current over each step; changing-current acceleration is not modelled.
@@ -156,11 +156,16 @@ class LF:
         return np.r_[eta_dot, nu_dot]
 
     def step(self, state, dt, *, tau_wind=(0.,)*6, tau_thruster=(0.,)*6,
-             tau_wave_drift=(0.,)*6, current_ned=(0., 0., 0.)):
+             tau_wave_drift=(0.,)*6, current_ned=(0., 0., 0.),
+             tau_external=(0.,)*6):
         """Return the LF state dt seconds later using fourth-order Runge-Kutta.
 
         Supply separately calculated wind, delivered thruster and LF wave-drift
         loads, each [X,Y,Z,K,M,N]. Missing loads/current default to zero.
+        tau_external adds other body-frame loads, e.g. a rope, and defaults to
+        six zeros. Forces are in N and moments in N m about the same origin as
+        the vessel matrices. The caller converts rope forces to body axes and
+        includes the attachment-point moment (lever arm cross force).
         tau_wave_drift receives WaveLoads.calculate(...).tau_second_order,
         which includes mean plus slowly varying drift. Do not add tau_mean again.
         First-order wave loads are excluded when WF motion is supplied by RAOs.
@@ -174,7 +179,8 @@ class LF:
         state = checked(state, (12,), "state")
         tau = (checked(tau_wind, (6,), "tau_wind")
                + checked(tau_thruster, (6,), "tau_thruster")
-               + checked(tau_wave_drift, (6,), "tau_wave_drift"))
+               + checked(tau_wave_drift, (6,), "tau_wave_drift")
+               + checked(tau_external, (6,), "tau_external"))
         current = checked(current_ned, (3,), "current_ned")
 
         # Evaluate rates at the start, two midpoint estimates, and the endpoint.
@@ -187,7 +193,7 @@ class LF:
 
     def step_with_waves(self, state, dt, *, time, wave_loads,
                         tau_wind=(0.,)*6, tau_thruster=(0.,)*6,
-                        current_ned=(0., 0., 0.)):
+                        current_ned=(0., 0., 0.), tau_external=(0.,)*6):
         """Calculate second-order wave loads and feed them into the existing RK4 step.
 
         wave_loads is a configured WaveLoads object with current components.
@@ -196,10 +202,12 @@ class LF:
         reduce the communication step to resolve time/heading-varying wave drift.
         For WF output, evaluate WF.displacement at time+dt and the returned pose.
         No first-order loads or WF motion are inserted into the LF equation.
+        tau_external is forwarded to step(), with the same body-frame convention
+        and zero default; it is held constant across this step like other loads.
         """
         state = checked(state, (12,), "state")
         result = wave_loads.calculate(time, state[:6])
         return self.step(state, dt, tau_wind=tau_wind,
                          tau_thruster=tau_thruster,
                          tau_wave_drift=result.tau_second_order,
-                         current_ned=current_ned)
+                         current_ned=current_ned, tau_external=tau_external)
