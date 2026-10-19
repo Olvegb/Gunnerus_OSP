@@ -1,4 +1,4 @@
-"""Wave components + MOTION RAOs -> WF displacement, not wave forces.
+"""Wave components + MOTION RAOs -> WF displacement, not wave forces. 1234
 
 For motion superposition: total pose = LF pose + WF increment, in common axes.
 Do not also integrate first-order forces into LF. No RK4 is required for this
