@@ -1,9 +1,9 @@
-"""Vessel-side wave loads using Viljar Simonnes Tveit's implementation.
+"""Vessel-side wave loads using Viljar Simonnes Tveit's implementation. 1234
 
 Source: https://github.com/viljarst/DP_cosim/tree/wave-loads/wave_forces
 Revision: 668b1c4a419ff9cbdc6ca28d348c5c62301d3bab
 VesselData, interpolate_frequency, WaveLoadModel and build_model below are
-copied from vessel_data.py and model.py (only module imports are consolidated).
+adapted from vessel_data.py and model.py; wave drift uses Eq. 6.99 by default.
 The WaveLoads adapter preserves our LF/WF interface and maps X,Y,N into six DOFs.
 Shared WaveComponents/ResponseTable helpers remain for WF and synthetic tables.
 
@@ -13,11 +13,9 @@ feed it once to LF. First-order loads remain diagnostic when using motion-RAO WF
 The upstream file loader uses raw freqs for both force and drift tables and
 converts force-RAO phases from degrees. This deliberately follows Viljar's code.
 
-The wave-drift implementation additionally supports Sørensen (2018), Eq. 6.99,
-for nonnegative diagonal drift coefficients. The default remains the existing
-Newman arithmetic approximation (Eq. 6.97), because signed drift coefficients
-in the current vessel datasets are not compatible with Eq. 6.99 as written.
-The Eq. 6.99 low-frequency option removes artificial sum-frequency terms.
+Wave drift defaults to Sørensen Eq. 6.99 with sum-frequency terms removed
+for LF. Active diagonal drift coefficients must be nonnegative. The result
+includes mean drift; feed tau_second_order to LF once.
 
 Upstream license:
 MIT License
@@ -300,7 +298,7 @@ class VesselData:
 class WaveLoadModel:
     """Wave forces on one vessel. One instance per vessel and simulation."""
 
-    def __init__(self, vessel, gravity, *, drift_method="newman_6_97",
+    def __init__(self, vessel, gravity, *, drift_method="sorensen_6_99",
                  remove_sum_frequency=True):
         """Initialize wave loads.
 
@@ -439,7 +437,7 @@ def build_model(p):
     )
     return WaveLoadModel(
         vessel, float(p["gravity"]),
-        drift_method=p.get("drift_method", "newman_6_97"),
+        drift_method=p.get("drift_method", "sorensen_6_99"),
         remove_sum_frequency=p.get("remove_sum_frequency", True),
     )
 
@@ -465,7 +463,7 @@ class WaveLoads:
     """Compatibility adapter: Viljar's force model -> existing LF/WF scripts."""
 
     def __init__(self, force_table, drift_table, *, gravity=9.81,
-                 drift_method="newman_6_97", remove_sum_frequency=True):
+                 drift_method="sorensen_6_99", remove_sum_frequency=True):
         if (force_table.kind != 'rao' or drift_table.kind != 'drift'
                 or force_table.values.shape[0] != 3 or drift_table.values.shape[0] != 3):
             raise ValueError('Supply X,Y,N force-RAO and real drift tables')
@@ -485,7 +483,7 @@ class WaveLoads:
 
     @classmethod
     def from_shipx(cls, path, *, phase_unit, amplitude_mode, gravity=9.81,
-                   drift_method="newman_6_97", remove_sum_frequency=True):
+                   drift_method="sorensen_6_99", remove_sum_frequency=True):
         """Load zero-speed data using Viljar's loader and X/Y/N row mapping.
 
         His loader expects force phases in degrees and uses the common raw
