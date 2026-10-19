@@ -13,6 +13,12 @@ feed it once to LF. First-order loads remain diagnostic when using motion-RAO WF
 The upstream file loader uses raw freqs for both force and drift tables and
 converts force-RAO phases from degrees. This deliberately follows Viljar's code.
 
+The wave-drift implementation additionally supports Sørensen (2018), Eq. 6.99,
+for nonnegative diagonal drift coefficients. The default remains the existing
+Newman arithmetic approximation (Eq. 6.97), because signed drift coefficients
+in the current vessel datasets are not compatible with Eq. 6.99 as written.
+The Eq. 6.99 low-frequency option removes artificial sum-frequency terms.
+
 Upstream license:
 MIT License
 
@@ -294,15 +300,29 @@ class VesselData:
 class WaveLoadModel:
     """Wave forces on one vessel. One instance per vessel and simulation."""
 
-    def __init__(self, vessel, gravity):
+    def __init__(self, vessel, gravity, *, drift_method="newman_6_97",
+                 remove_sum_frequency=True):
+        """Initialize wave loads.
+
+        drift_method:
+          - 'newman_6_97': existing arithmetic QTF approximation, permits signed Tjj.
+          - 'sorensen_6_99': Eq. (6.99), REQUIRES nonnegative Tjj for active waves.
+        remove_sum_frequency:
+          - True (recommended for LF): retain mean and difference frequencies.
+          - False: evaluate the literal 2 * (sum_i A_i sqrt(Tii) cos(phi_i))**2.
+
+        Eq. (6.99) is an approximation for a common wave direction. Applying it
+        component-wise to directionally spread seas is another approximation,
+        not a complete directional quadratic transfer function (QTF).
         """
-        vessel:  a VesselData object (vessel_data.py)
-        gravity: [m/s^2]
-        """
+        if drift_method not in ("newman_6_97", "sorensen_6_99"):
+            raise ValueError("drift_method must be 'newman_6_97' or 'sorensen_6_99'")
+        self.drift_method = drift_method
+        self.remove_sum_frequency = bool(remove_sum_frequency)
         self.vessel = vessel
         self.gravity = gravity
         self.frequencies = None
-        self.set_waves([], [], [], [])                       # no waves until set_waves() is called
+        self.set_waves([], [], [], [])  # No waves until set_waves() is called.
 
     # -- wave components from the waves block -------------------------------------
 
@@ -345,13 +365,50 @@ class WaveLoadModel:
         return (np.conj(H) * np.exp(1j * arg)).real @ self.amplitudes
 
     def drift(self, t, eta):
-        """Mean + slowly varying drift loads [Fx, Fy, Mz] at time t (Newman)."""
+        """Mean + slowly varying wave drift [Fx, Fy, Mz] in the body frame.
+
+        'newman_6_97': original arithmetic-average approximation.
+        'sorensen_6_99': Eq. (6.99) with diagonal Tjj >= 0:
+
+            tau_raw = 2 * [sum_i A_i sqrt(Tii) cos(w_i*t - eps_i)]**2
+
+        With remove_sum_frequency=True, discard the unphysical sum-frequency
+        terms (including the 2*w_i harmonics) before applying the load to LF.
+        This leaves |sum_i A_i sqrt(Tii) exp(j*(w_i*t-eps_i))|**2,
+        which contains the mean and difference-frequency contributions.
+
+        Do not silently take sqrt(abs(Tii)) for signed coefficients: that would
+        give the wrong drift direction. For negative Tii, select newman_6_97
+        explicitly until a signed-data QTF treatment is established.
+        """
         if len(self.amplitudes) == 0:
             return np.zeros(3)
         psi = eta[2]
         T = self._interpolate_heading(self._drift, self.directions - psi)
         e = self.amplitudes * np.exp(1j * (self.frequencies * t - self.phases))
-        return ((T * e).sum(axis=1) * np.conj(e.sum())).real
+
+        if self.drift_method == "newman_6_97":
+            return ((T * e).sum(axis=1) * np.conj(e.sum())).real
+
+        # Equation 6.99 is explicitly valid only for nonnegative coefficients.
+        active = self.amplitudes > 0
+        T_active = T[:, active]
+        tolerance = 1e-12 * max(1.0, float(np.max(np.abs(T_active), initial=0)))
+        if np.any(T_active < -tolerance):
+            raise ValueError(
+                "Sørensen Eq. 6.99 requires nonnegative wave-drift coefficients "
+                "for every active component. This vessel has negative coefficients. "
+                "Use drift_method='newman_6_97' for signed Tjj or provide "
+                "a physically validated signed-QTF approximation."
+            )
+
+        # Zero-amplitude slots cannot affect the result, even if their tabulated
+        # coefficients are negative. Clip only roundoff-level negative values.
+        nonnegative_T = np.maximum(np.where(active[None, :], T, 0.0), 0.0)
+        z = np.sum(np.sqrt(nonnegative_T) * e[None, :], axis=1)
+        if self.remove_sum_frequency:
+            return np.abs(z)**2   # Eq. 6.99 after excluding sum frequencies.
+        return 2.0 * np.real(z)**2  # Literal, unfiltered Eq. 6.99.
 
     def mean_drift(self, psi):
         """The mean value of the drift load for heading psi (no time series)."""
@@ -380,7 +437,11 @@ def build_model(p):
                     "yaw": int(p["drift_row_yaw"])},
         rao_amplitude=p["rao_amplitude"],
     )
-    return WaveLoadModel(vessel, float(p["gravity"]))
+    return WaveLoadModel(
+        vessel, float(p["gravity"]),
+        drift_method=p.get("drift_method", "newman_6_97"),
+        remove_sum_frequency=p.get("remove_sum_frequency", True),
+    )
 
 
 class _ResponseTableVessel:
@@ -403,22 +464,28 @@ class _ResponseTableVessel:
 class WaveLoads:
     """Compatibility adapter: Viljar's force model -> existing LF/WF scripts."""
 
-    def __init__(self, force_table, drift_table, *, gravity=9.81):
+    def __init__(self, force_table, drift_table, *, gravity=9.81,
+                 drift_method="newman_6_97", remove_sum_frequency=True):
         if (force_table.kind != 'rao' or drift_table.kind != 'drift'
                 or force_table.values.shape[0] != 3 or drift_table.values.shape[0] != 3):
             raise ValueError('Supply X,Y,N force-RAO and real drift tables')
         self.force_table, self.drift_table = force_table, drift_table
-        self._initialize(_ResponseTableVessel(force_table, drift_table), gravity)
+        self._initialize(_ResponseTableVessel(force_table, drift_table), gravity,
+                         drift_method, remove_sum_frequency)
 
-    def _initialize(self, vessel, gravity):
+    def _initialize(self, vessel, gravity, drift_method, remove_sum_frequency):
         if not np.isfinite(gravity) or gravity <= 0:
             raise ValueError('gravity must be positive')
         self.gravity = gravity
-        self.model = WaveLoadModel(vessel, gravity)
+        self.model = WaveLoadModel(
+            vessel, gravity, drift_method=drift_method,
+            remove_sum_frequency=remove_sum_frequency,
+        )
         self.set_components(WaveComponents([], [], [], []))
 
     @classmethod
-    def from_shipx(cls, path, *, phase_unit, amplitude_mode, gravity=9.81):
+    def from_shipx(cls, path, *, phase_unit, amplitude_mode, gravity=9.81,
+                   drift_method="newman_6_97", remove_sum_frequency=True):
         """Load zero-speed data using Viljar's loader and X/Y/N row mapping.
 
         His loader expects force phases in degrees and uses the common raw
@@ -433,7 +500,7 @@ class WaveLoads:
                             {'surge': 0, 'sway': 1, 'yaw': 5},
                             {'surge': 0, 'sway': 1, 'yaw': 2}, amplitude_mode)
         obj = cls.__new__(cls)
-        obj._initialize(vessel, gravity)
+        obj._initialize(vessel, gravity, drift_method, remove_sum_frequency)
         return obj
 
     def set_components(self, components):
