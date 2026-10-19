@@ -1,4 +1,4 @@
-"""Hull-side wind loads adapted from Olve Gronas Birkeland's supplied formula.
+"""Hull-side wind loads adapted from Olve Gronas Birkeland's supplied formula. 1234
 
 Pure Python calculation, not an FMU. Inputs follow his updated message:
 mean_wind_speed, sw_wind_speed, gust_wind_speed (m/s) and wind_direction_deg
