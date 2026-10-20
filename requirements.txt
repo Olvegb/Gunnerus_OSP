@@ -8,3 +8,5 @@ scipy==1.14.1        # ThrustAllocation: linprog (HiGHS)
 pandas               # run_simulation.py: reads the result CSVs
 pythonfmu==0.7.0     # build_fmus.py (the version the FMUs in fmus/ were built with)
 libcosimpy==0.0.6    # run_simulation.py: runs OspSystemStructure.xml
+streamlit            # app/: the results app
+plotly               # app/: plots in the results app
