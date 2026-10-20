@@ -1,0 +1,94 @@
+# Results app
+
+A small web app (Streamlit + Plotly) for running the simulation and reading the results. You can edit
+the config values, start a new run, and look at any earlier run. It runs locally in the browser;
+nothing is sent anywhere.
+
+## Start it
+
+From the repo folder, with the `master` environment active:
+
+```powershell
+conda activate master
+pip install -r requirements.txt     # once: includes streamlit and plotly
+streamlit run app/app.py
+```
+
+The app opens at http://localhost:8501. Stop it with Ctrl+C in the terminal.
+
+## Runs
+
+Every run gets its own folder, `results/<YYYYMMDD_HHMMSS>[_name]/`, with one CSV per FMU and a copy of
+the config it was run with (`config.toml`). Nothing is overwritten, so earlier runs stay available.
+This is the same whether the run is started from the app or with `python run_simulation.py`.
+
+The run's copy of the config is what the FMUs read: `run_simulation.py` points `config_path` on every
+FMU to it, so `OspSystemStructure.xml` is not changed. Relative file paths in the copy (such as
+`[vessel_fmu] data_file`) are made absolute, because the copy lies in another folder.
+
+## New run tab
+
+1. **Start from:** `config.toml`, or the config of an earlier run (to repeat or vary it).
+2. **Edit the values.** One input per value, grouped as in `config.toml`: simulation, wind, waves,
+   current, vessel, DP controller, Kalman filter and thrust allocation. Hover the ⓘ to see the comment
+   from `config.toml`. Lists with up to three numbers get one input per number; longer lists are
+   comma-separated.
+3. **Run name** (optional) is added to the folder name.
+4. **Run simulation.** The app writes a copy of the config with your changes, runs
+   `run_simulation.py` with it, and selects the new run in the sidebar. The output of the script is
+   shown at the top of the tab.
+
+**Save as default in config.toml** writes the values in the form into `config.toml` itself, keeping
+the comments. Only the changed lines are touched.
+
+Not editable in the app: the multi-line vessel matrices (`mass_matrix`, `damping_matrix`), the
+`[blendermann]` table, the `[[power_sources]]` and `[[thrusters]]` layout, and file paths. Edit those
+in `config.toml`.
+
+## Result tabs
+
+| Tab | Content |
+|---|---|
+| **Overview** | Key numbers (position and heading error, power, utilisation, time saturated, mean wind), the footprint (north vs east, total and LF, with the set-point), a summary of the run's config, and an animated footprint: a time slider (and ▶ Play) moves through the run and shows the track so far, earlier headings, the vessel's position and heading now, and arrows for wind, waves and current with their values at that time (see below) |
+| **Vessel** | North, east and heading (total and LF), the WF motion, the LF velocity, and the loads per DOF: wind, wave drift and thrusters |
+| **Environment** | Wind speed (total and each part), wind, wave and current directions, current components, sea state |
+| **Kalman filter** | Measured total, LF estimate and true LF motion; WF estimate and true WF motion; the bias estimate |
+| **Control and thrusters** | Position and heading error, commanded vs delivered force, thrust, azimuth and power per thruster (named from `[[thrusters]]`), utilisation and saturation |
+| **Data** | Any column of any FMU: plot, table and download as CSV |
+
+**Sidebar**
+
+- **Run.** Every run folder in `results/`, newest first. CSV files directly in `results/` (from before
+  run folders, or from cosim CLI) show up as "results/ (loose files)".
+- **Other folder.** Show a run that lies somewhere else.
+- **Reload.** Reads the files again (also happens by itself when a CSV file changes).
+- **Time window.** Zooms every plot to a part of the run.
+
+**The animated footprint.** The time slider and ▶ Play run in the browser, so moving through the run
+is quick. *Number of heading arrows* sets how many earlier headings are drawn, *Time steps on the
+slider* how many steps the slider has (more = smoother, but a slower page). Wind, waves and current
+start on the side they come from and point the way they go; the length shows the size (full length at
+20 m/s wind, 5 m H_s, 1 m/s current, and at least a quarter of that so small values still show their
+direction), and the label gives the value. This plot loads plotly.js from its CDN, so it needs an
+internet connection.
+
+Angles are shown in degrees, also where the FMU uses radians (vessel `yaw`, filter `psi`).
+
+## Files
+
+| File | What it does |
+|---|---|
+| `app/app.py` | The Streamlit app: sidebar and tabs |
+| `app/footprint.py` | The animated footprint in the Overview tab |
+| `app/editor.py` | The New run tab: the inputs, running the simulation, saving as default |
+| `app/data.py` | Reads the run folders, the result CSVs and the config, key numbers. Plain Python and pandas, no Streamlit |
+| `app/config_tools.py` | Changes values in the config as text, so the comments are kept. Also used by `run_simulation.py` |
+
+## Known limitations
+
+- A run blocks the app until it is done. Long runs (several minutes of simulated time) take a while.
+- Runs are not compared side by side yet; open two browser tabs and pick a run in each.
+- Runs from before run folders (loose files in `results/`) have no config copy, so their summary uses
+  `config.toml` as it is now.
+- Old run folders are never deleted by the app. Delete them in the file explorer when they are not
+  needed.
