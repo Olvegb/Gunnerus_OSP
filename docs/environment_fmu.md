@@ -133,10 +133,21 @@ wind every run. The waves have their own `seed` in `[waves]`.
 | File | What it does |
 |---|---|
 | `models/environment.py` | The FMU, everything in one file |
+| `tests/environment/check_environment.py` | Checks without OSP: everything switched off gives constant outputs; V_sv has zero mean, the right std and time constant, also with another step size; the gust std matches the NORSOK spectrum; the direction follows mean + rate · t and stays in [0, 360); the current components; the seed |
 
-There is no test script yet. A quick check: with every part switched off, the outputs are constant and
-equal to the config values; with the defaults over one hour, the standard deviations of V_sv and β_sv
-are close to `std` and `std_deg`.
+Run from the repo folder:
+
+```
+python tests/environment/check_environment.py
+```
+
+Result with the default config:
+
+| Check | Expected | Result |
+|---|---|---|
+| V_sv std (T = 300 s, dt = 0.1 s / 1.0 s) | 1.0 m/s | 0.995 / 0.974 m/s |
+| V_sv correlation after T | e⁻¹ = 0.368 | 0.366 / 0.356 |
+| Gust std (one hour) | 1.395 m/s (spectrum) | 1.373 m/s |
 
 ## 5. Known limitations
 

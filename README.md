@@ -5,7 +5,7 @@ A complete DP (dynamic positioning) simulator in OSP, with one closed loop of se
 - **Environment** gives the wind (mean, slowly varying and gust speed, slowly varying direction), the sea state (H_s, T_p, wave direction) and the current, all in the earth-fixed NED frame. See [docs/environment_fmu.md](docs/environment_fmu.md).
 - **Waves** turns the sea state into 100 regular wave components (amplitude, frequency, phase, direction). Regular or irregular (long- or short-crested) sea. See [docs/waves_fmu.md](docs/waves_fmu.md).
 - **VesselBlock** is the 6-DOF hull: low-frequency (LF) and wave-frequency (WF) motion, with wind loads (Blendermann), wave loads and current calculated inside. See [docs/vessel_fmu.md](docs/vessel_fmu.md).
-- **ExtendedKalmanFilter** estimates the vessel's position, velocity and slowly varying disturbances (bias) from the measured position and heading. See [docs/kalman_filter.md](docs/kalman_filter.md).
+- **ExtendedKalmanFilter** splits the measured position and heading into low-frequency (LF) and wave-frequency (WF) motion, and estimates the LF velocity and slowly varying disturbances (bias). The controller only gets the LF part. See [docs/kalman_filter.md](docs/kalman_filter.md).
 - **DPController** is a simple PID that holds the vessel at the set-point in `config.toml`. See [docs/dp_controller.md](docs/dp_controller.md).
 - **ThrustAllocation** and **ThrusterDynamics** turn the commanded force τ = (X, Y, N) into thrust and azimuth commands per thruster, and then into the force the thrusters actually give the vessel. See [docs/thruster_fmus.md](docs/thruster_fmus.md).
 
@@ -24,7 +24,7 @@ This is option **B3** in [Configfile_ways.md](../Configfile_ways.md).
 | [docs/environment_fmu.md](docs/environment_fmu.md) | Environment: wind, sea state and current models, `config.toml` keys |
 | [docs/waves_fmu.md](docs/waves_fmu.md) | Waves: inputs and outputs, `config.toml` keys, the wave elevation the hull must use |
 | [docs/vessel_fmu.md](docs/vessel_fmu.md) | VesselBlock: the hull model and its data file |
-| [docs/kalman_filter.md](docs/kalman_filter.md) | ExtendedKalmanFilter: states, process and measurement model, tuning |
+| [docs/kalman_filter.md](docs/kalman_filter.md) | ExtendedKalmanFilter: LF + WF states, process and measurement model, RK4, tuning |
 | [docs/dp_controller.md](docs/dp_controller.md) | DPController: the control law, gains, `config.toml` keys |
 | [docs/thruster_fmus.md](docs/thruster_fmus.md) | ThrustAllocation and ThrusterDynamics: allocation, dynamics, power, `config.toml` keys |
 
@@ -47,22 +47,22 @@ Wind:    14.6 m/s from 97.3 deg (NED, at the end)
 Current: 0.5 m/s towards 0 deg (NED)
 
 Vessel at the end of the simulation:
-  north          =        0.316 m
-  east           =       -0.398 m
+  north          =        0.318 m
+  east           =       -0.399 m
   yaw            =       -0.011 rad
-  wind_X         =       3936.3 N
-  wind_Y         =     -82860.4 N
-  wind_N         =    -820747.0 Nm
+  wind_X         =       3933.8 N
+  wind_Y         =     -82855.4 N
+  wind_N         =    -820796.0 Nm
 
 Kalman filter estimates at the end of the simulation:
-  north_hat =       0.2918 m
+  north_hat =       0.2717 m
   ...
 
-Thrusters at the end of the simulation (utilisation 0.140, saturated False):
-  X              =      10413.1 N
-  Y              =      65189.0 N
-  N              =    -742876.0 Nm
-  total_power_kw =        116.5 kW
+Thrusters at the end of the simulation (utilisation 0.138, saturated False):
+  X              =      12856.5 N
+  Y              =      64187.8 N
+  N              =    -712595.0 Nm
+  total_power_kw =        117.7 kW
 ```
 
 The wind comes from the east, so it pushes the vessel west (east < 0) and gives a force to port (wind_Y < 0). The current pushes it north. The thrusters push back.
@@ -86,6 +86,8 @@ All commands are run from this folder, with the `master` environment active (`co
 | Run the simulation (cosim CLI) | `cosim run OspSystemStructure.xml -d 10 --output-dir results` |
 | Waves checks | `python tests/waves/check_waves_fmu.py` (and the other scripts in `tests/waves/`) |
 | Controller checks | `python tests/controller/check_dp_controller.py`, `python tests/controller/check_closed_loop.py` |
+| Environment checks | `python tests/environment/check_environment.py` |
+| Kalman filter checks | `python tests/kalman/check_kalman_filter.py` |
 | Vessel check (needs fmpy) | `python tests/vessel/check_vessel_fmu.py` |
 
 **Rebuild only when a `.py` file changes** (in `models/` or a `*_cosim/` package). Changes to `config.toml` and `OspSystemStructure.xml` need no rebuild.
@@ -106,7 +108,7 @@ When building one FMU by hand, include the `*_cosim/` packages the model imports
 | `models/thrust_allocation.py`, `models/thruster_dynamics.py` | ThrustAllocation and ThrusterDynamics FMUs. Thin wrappers around `thruster_cosim/` | When the logic changes. Needs a rebuild. |
 | `models/test.py` | Test FMU, a minimal example of the set-up | Never |
 | `wave_cosim/`, `vessel_cosim/`, `thruster_cosim/` | The wave, vessel and thruster logic. Built into every FMU's `resources/` | When the logic changes. Needs a rebuild. |
-| `tests/` | Check scripts for waves, controller and vessel | When that logic changes |
+| `tests/` | Check scripts for environment, waves, controller, Kalman filter and vessel | When that logic changes |
 | `docs/` | One document per FMU | When an FMU changes |
 | `build_fmus.py` | Turns each `.py` in `models/` into an `.fmu` in `fmus/`, with the `*_cosim/` packages included | Rarely |
 | `run_simulation.py` | Runs the simulation from Python and prints the result | When you want other output |
