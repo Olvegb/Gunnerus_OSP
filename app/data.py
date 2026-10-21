@@ -97,14 +97,18 @@ def summary(results, config):
     if first is not None and len(first):
         out["Simulated time"] = (first.index[-1], "s")
     dp = results.get("dp_controller")
-    if dp is not None and len(dp):
+    has_dp = dp is not None and len(dp)
+    vessel = results.get("vessel")
+    has_vessel = vessel is not None and len(vessel)
+    if has_dp:
         distance = (dp["error_north"] ** 2 + dp["error_east"] ** 2) ** 0.5
         out["Position error, end"] = (distance.iloc[-1], "m")
         out["Position error, max"] = (distance.max(), "m")
-        out["Heading error, max"] = (dp["error_heading_deg"].abs().max(), "deg")
-    vessel = results.get("vessel")
-    if vessel is not None and len(vessel):
+    if has_vessel:
         out["Std position"] = (position_std(vessel), "m")
+    if has_dp:
+        out["Heading error, max"] = (dp["error_heading_deg"].abs().max(), "deg")
+    if has_vessel:
         out["Std heading"] = (np.rad2deg(np.unwrap(vessel["yaw"].to_numpy())).std(ddof=1), "deg")
     dynamics = results.get("dynamics")
     if dynamics is not None and len(dynamics):
