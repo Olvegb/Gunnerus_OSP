@@ -6,8 +6,9 @@ the simulation starts.
 
   - inputs:   the estimates from the ExtendedKalmanFilter FMU
               north_hat, east_hat [m], psi_hat [rad], u_hat, v_hat [m/s], r_hat [rad/s]
-  - outputs:  tau_X, tau_Y [N], tau_N [Nm], the commanded force in the body frame,
-              to the ThrustAllocation FMU
+  - outputs:  the P, I and D terms of the commanded force in the body frame,
+              tau_<dof>_P, tau_<dof>_I, tau_<dof>_D for dof X, Y [N] and N [Nm],
+              to the ThrustAllocation FMU, which adds them up to tau_X, tau_Y, tau_N
   - settings: [controller] (set-point, natural frequency, damping ratio, integral limit)
               and the mass and damping matrices in [vessel]
 
@@ -19,6 +20,7 @@ and rotated into the body frame, because tau is in the body frame:
     e     = R(psi_hat)^T e_ned                         (error in the body frame)
     z    += e * dt                                     (integral of the error)
     tau   = -Kp e - Ki z - Kd [u_hat, v_hat, r_hat]    (body frame)
+          =  tau_P  + tau_I  + tau_D                   (sent out one by one)
 
 The D term uses the velocity estimates directly, so nothing has to be
 differentiated. The integral removes the steady offset from current, wave
@@ -45,11 +47,19 @@ INPUTS = (
     "north_hat", "east_hat", "psi_hat",      # estimated position and heading [m, m, rad]
     "u_hat", "v_hat", "r_hat",               # estimated velocity, body frame [m/s, m/s, rad/s]
 )
-OUTPUTS = (
-    "tau_X", "tau_Y", "tau_N",               # commanded force, body frame [N, N, Nm]
+DOFS = ("X", "Y", "N")
+TERMS = ("P", "I", "D")
+# The commanded force, one output per degree of freedom and term, body frame [N, N, Nm].
+TAU_TERMS = tuple(f"tau_{dof}_{term}" for dof in DOFS for term in TERMS)
+OUTPUTS = TAU_TERMS + (
     "error_north", "error_east",             # position error, NED [m] (for logging)
     "error_heading_deg",                     # heading error, -180 to 180 [deg] (for logging)
 )
+
+
+def total_tau(fmu):
+    """tau = P + I + D [X, Y, N] from the controller's outputs, as the allocation adds them up."""
+    return np.array([sum(getattr(fmu, f"tau_{dof}_{term}") for term in TERMS) for dof in DOFS])
 
 
 def rotation(psi):
@@ -93,7 +103,7 @@ class DPController(Fmi2Slave):
             setattr(self, name, 0.0)
             self.register_variable(Real(name, causality=Fmi2Causality.input))
 
-        # OUTPUTS: the commanded force, and the errors for logging.
+        # OUTPUTS: the P, I and D terms of the commanded force, and the errors for logging.
         for name in OUTPUTS:
             setattr(self, name, 0.0)
             self.register_variable(Real(name, causality=Fmi2Causality.output))
@@ -136,10 +146,11 @@ class DPController(Fmi2Slave):
         z_max = np.divide(self.integral_limit, self.ki, out=np.full(3, np.inf), where=self.ki > 0)
         self.z = np.clip(self.z, -z_max, z_max)
 
-        # PID in the body frame.
-        tau = -self.kp * e - self.ki * self.z - self.kd * nu
-
-        self.tau_X, self.tau_Y, self.tau_N = (float(value) for value in tau)
+        # PID in the body frame, one term at a time. The allocation adds them up.
+        terms = {"P": -self.kp * e, "I": -self.ki * self.z, "D": -self.kd * nu}
+        for term, values in terms.items():
+            for dof, value in zip(DOFS, values):
+                setattr(self, f"tau_{dof}_{term}", float(value))
         self.error_north, self.error_east = float(e_ned[0]), float(e_ned[1])
         self.error_heading_deg = float(np.degrees(e_ned[2]))
         return True

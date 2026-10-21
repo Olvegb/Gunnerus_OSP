@@ -153,7 +153,7 @@ When building one FMU by hand, include the `*_cosim/` packages the model imports
     │                                   ▼  north_hat ... r_hat
     │                             dp_controller
     │                                   │
-    │                                   ▼  tau_X, tau_Y, tau_N
+    │                                   ▼  tau_X/Y/N_P, _I, _D (summed in allocation)
     └── thrust + azimuth command ◄── allocation      (8 thruster slots)
 ```
 

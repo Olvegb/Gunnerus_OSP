@@ -4,7 +4,7 @@ Two FMUs (FMI 2.0 co-simulation, built with pythonfmu 0.7.0, run in OSP) that tu
 controller's force command into the force the thrusters actually put on the vessel. Owner: William.
 
 ```
-DP controller ──tau_X, tau_Y, tau_N──► ThrustAllocation ──thrust + azimuth command──► ThrusterDynamics ──X, Y, N──► vessel model
+DP controller ──P, I, D terms of tau──► ThrustAllocation ──thrust + azimuth command──► ThrusterDynamics ──X, Y, N──► vessel model
                                               ▲              per thruster (8 slots)          ▲
                                               └──────────── thrusterK_available ────────────┘
                                                          (failure injection, optional)
@@ -76,12 +76,13 @@ Every time step it:
 | | Name | Type | Unit | Meaning |
 |---|---|---|---|---|
 | parameter | `config_path` | String | – | Path to `config.toml` |
-| input | `tau_X` | Real | N | Commanded surge force, + forward |
-| input | `tau_Y` | Real | N | Commanded sway force, + to starboard |
-| input | `tau_N` | Real | Nm | Commanded yaw moment, + bow to starboard |
+| input | `tau_X_P`, `tau_X_I`, `tau_X_D` | Real | N | P, I and D term of the commanded surge force, + forward |
+| input | `tau_Y_P`, `tau_Y_I`, `tau_Y_D` | Real | N | P, I and D term of the commanded sway force, + to starboard |
+| input | `tau_N_P`, `tau_N_I`, `tau_N_D` | Real | Nm | P, I and D term of the commanded yaw moment, + bow to starboard |
 | input | `thrusterK_available` | Boolean | – | False: thruster K is not used. Default true |
 | output | `thrusterK_thrust_command` | Real | N | Thrust along `thrusterK_azimuth_command_deg`: ≥ 0 for azimuths, signed for tunnels and shaft lines |
 | output | `thrusterK_azimuth_command_deg` | Real | deg | Direction positive thrust pushes: the commanded angle for azimuths, always 90 for tunnels and 0 for shaft lines |
+| output | `tau_X`, `tau_Y`, `tau_N` | Real | N, N, Nm | τ = P + I + D, the commanded force that is allocated |
 | output | `utilisation` | Real | – | What τ needs as a fraction of what the thrusters have. Above 1 when saturated; `inf` when τ can't be given in any amount (e.g. tunnels only against a surge command) |
 | output | `saturated` | Boolean | – | True when τ was out of reach and the commands give the closest reachable τ |
 
@@ -123,7 +124,7 @@ The thrusters start at rest: zero thrust, azimuths pointing ahead (0°), tunnels
 
 ## 5. Connecting them in `OspSystemStructure.xml`
 
-Simulator and variable names on the other FMUs (`dp`, `vessel`, `tau_X_out`, …) are placeholders.
+Simulator and variable names on the other FMUs (`dp`, `vessel`, …) are placeholders.
 
 ```xml
 <Simulator name="allocation" source="fmus/ThrustAllocation.fmu">
@@ -138,14 +139,14 @@ Simulator and variable names on the other FMUs (`dp`, `vessel`, `tau_X_out`, …
 </Simulator>
 ```
 
-**DP controller → allocation** (three connections; remove any fixed `tau_*` InitialValues):
+**DP controller → allocation** (nine connections, one per degree of freedom and term):
 
 ```xml
 <VariableConnection>
-    <Variable simulator="dp" name="tau_X_out"/>
-    <Variable simulator="allocation" name="tau_X"/>
+    <Variable simulator="dp" name="tau_X_P"/>
+    <Variable simulator="allocation" name="tau_X_P"/>
 </VariableConnection>
-<!-- the same for tau_Y and tau_N -->
+<!-- the same for tau_X_I, tau_X_D, tau_Y_P ... tau_N_D -->
 ```
 
 **Allocation → dynamics**: 16 connections, thrust and angle for each of the 8 slots. Connect all 8

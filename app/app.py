@@ -291,11 +291,16 @@ with tabs[5]:
             show(line_plot([("Heading", dp["error_heading_deg"])], "Heading error", "[deg]"))
         c1, c2, c3 = st.columns(3)
         for column, dof, unit in ((c1, "X", "N"), (c2, "Y", "N"), (c3, "N", "Nm")):
-            series = [("Commanded", dp[f"tau_{dof}"])]
+            # Runs from before the controller sent out P, I and D only have tau_<dof>.
+            terms = [(term, dp[f"tau_{dof}_{term}"]) for term in ("P", "I", "D") if f"tau_{dof}_{term}" in dp]
+            commanded = sum(values for _, values in terms) if terms else dp[f"tau_{dof}"]
+            series = [("Commanded (P + I + D)", commanded)]
             if dynamics is not None:
                 series.append(("Delivered", dynamics[dof]))
             with column:
                 show(line_plot(series, f"Force {dof}", f"[{unit}]"))
+                if terms:
+                    show(line_plot(terms, f"PID terms {dof}", f"[{unit}]"))
 
     if dynamics is not None:
         slots = data.thruster_slots(config)
