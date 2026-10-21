@@ -203,6 +203,10 @@ with tabs[2]:
     if vessel is None:
         missing("vessel")
     else:
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Std north", f"{vessel['north'].std():,.2f} m")
+        c2.metric("Std east", f"{vessel['east'].std():,.2f} m")
+        c3.metric("Std position", f"{data.position_std(vessel):,.2f} m")
         c1, c2 = st.columns(2)
         with c1:
             show(line_plot([("Total", vessel["north"]), ("LF", vessel["lf_north"])], "North", "[m]"))
