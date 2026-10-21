@@ -11,6 +11,7 @@ import re
 import tomllib
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 
 ROOT = Path(__file__).resolve().parents[1]       # the repo folder
@@ -84,6 +85,11 @@ def total_wind_speed(environment):
 ENVIRONMENT_REFERENCE = {"Wind": 20.0, "Waves": 5.0, "Current": 1.0}
 
 
+def position_std(vessel):
+    """Standard deviation of the distance from the mean position [m], sqrt(var north + var east)."""
+    return (vessel["north"].var() + vessel["east"].var()) ** 0.5
+
+
 def summary(results, config):
     """Key numbers of a run, as {label: (value, unit)}. Missing data is skipped."""
     out = {}
@@ -96,6 +102,10 @@ def summary(results, config):
         out["Position error, end"] = (distance.iloc[-1], "m")
         out["Position error, max"] = (distance.max(), "m")
         out["Heading error, max"] = (dp["error_heading_deg"].abs().max(), "deg")
+    vessel = results.get("vessel")
+    if vessel is not None and len(vessel):
+        out["Std position"] = (position_std(vessel), "m")
+        out["Std heading"] = (np.rad2deg(np.unwrap(vessel["yaw"].to_numpy())).std(ddof=1), "deg")
     dynamics = results.get("dynamics")
     if dynamics is not None and len(dynamics):
         out["Power, mean"] = (dynamics["total_power_kw"].mean(), "kW")
@@ -107,4 +117,5 @@ def summary(results, config):
     environment = results.get("environment")
     if environment is not None and len(environment):
         out["Wind speed, mean"] = (total_wind_speed(environment).mean(), "m/s")
+        out["Current speed, mean"] = (environment["current_speed"].mean(), "m/s")
     return out
