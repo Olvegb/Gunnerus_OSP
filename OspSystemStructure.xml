@@ -19,7 +19,7 @@
        │                                   ▼  north_hat ... r_hat
        │                             dp_controller
        │                                   │
-       │                                   ▼  tau_X, tau_Y, tau_N
+       │                                   ▼  tau_X/Y/N_P, _I, _D (summed in allocation)
        └── thrust + azimuth command ◄── allocation      (8 thruster slots)
 
   Notes:
@@ -1848,18 +1848,43 @@
             <Variable simulator="dp_controller" name="r_hat"/>
         </VariableConnection>
 
-        <!-- dp_controller -> allocation: commanded force, body frame -->
+        <!-- dp_controller -> allocation: P, I and D terms of the commanded force, body frame.
+             The allocation adds them up to tau_X, tau_Y, tau_N. -->
         <VariableConnection>
-            <Variable simulator="dp_controller" name="tau_X"/>
-            <Variable simulator="allocation" name="tau_X"/>
+            <Variable simulator="dp_controller" name="tau_X_P"/>
+            <Variable simulator="allocation" name="tau_X_P"/>
         </VariableConnection>
         <VariableConnection>
-            <Variable simulator="dp_controller" name="tau_Y"/>
-            <Variable simulator="allocation" name="tau_Y"/>
+            <Variable simulator="dp_controller" name="tau_X_I"/>
+            <Variable simulator="allocation" name="tau_X_I"/>
         </VariableConnection>
         <VariableConnection>
-            <Variable simulator="dp_controller" name="tau_N"/>
-            <Variable simulator="allocation" name="tau_N"/>
+            <Variable simulator="dp_controller" name="tau_X_D"/>
+            <Variable simulator="allocation" name="tau_X_D"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="dp_controller" name="tau_Y_P"/>
+            <Variable simulator="allocation" name="tau_Y_P"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="dp_controller" name="tau_Y_I"/>
+            <Variable simulator="allocation" name="tau_Y_I"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="dp_controller" name="tau_Y_D"/>
+            <Variable simulator="allocation" name="tau_Y_D"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="dp_controller" name="tau_N_P"/>
+            <Variable simulator="allocation" name="tau_N_P"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="dp_controller" name="tau_N_I"/>
+            <Variable simulator="allocation" name="tau_N_I"/>
+        </VariableConnection>
+        <VariableConnection>
+            <Variable simulator="dp_controller" name="tau_N_D"/>
+            <Variable simulator="allocation" name="tau_N_D"/>
         </VariableConnection>
 
         <!-- allocation -> dynamics: thrust and azimuth command for each of the 8 slots -->

@@ -29,6 +29,10 @@ from thruster_cosim.layout import load_layout
 # config. For a bigger layout, raise it here and in thruster_dynamics.py and rebuild.
 MAX_THRUSTERS = 8
 SLOTS = range(1, MAX_THRUSTERS + 1)
+# The commanded force comes in as P, I and D terms per degree of freedom (as in dp_controller.py).
+DOFS = ("X", "Y", "N")
+TERMS = ("P", "I", "D")
+TAU_TERMS = tuple(f"tau_{dof}_{term}" for dof in DOFS for term in TERMS)
 
 
 class ThrustAllocation(Fmi2Slave):
@@ -44,12 +48,11 @@ class ThrustAllocation(Fmi2Slave):
         self.register_variable(String("config_path", causality=Fmi2Causality.parameter,
                                       variability=Fmi2Variability.fixed))
 
-        # INPUTS: the commanded force in the body frame (from the DP controller;
-        # a fixed value from OspSystemStructure.xml until there is one), and
-        # which thrusters can be used.
-        self.tau_X = self.tau_Y = 0.0  # [N]
-        self.tau_N = 0.0  # [Nm]
-        for name in ("tau_X", "tau_Y", "tau_N"):
+        # INPUTS: the P, I and D terms of the commanded force in the body frame
+        # (from the DP controller), tau_<dof>_<term> [N, N, Nm], and which
+        # thrusters can be used. The terms are added up to tau in allocate().
+        for name in TAU_TERMS:
+            setattr(self, name, 0.0)
             self.register_variable(Real(name, causality=Fmi2Causality.input))
         for k in SLOTS:
             setattr(self, f"thruster{k}_available", True)
@@ -63,6 +66,10 @@ class ThrustAllocation(Fmi2Slave):
             for name in (f"thruster{k}_thrust_command", f"thruster{k}_azimuth_command_deg"):
                 setattr(self, name, 0.0)
                 self.register_variable(Real(name, causality=Fmi2Causality.output))
+        # tau_X, tau_Y [N], tau_N [Nm]: the commanded force, P + I + D (for logging).
+        for dof in DOFS:
+            setattr(self, f"tau_{dof}", 0.0)
+            self.register_variable(Real(f"tau_{dof}", causality=Fmi2Causality.output))
         # utilisation: what the command needs as a fraction of what the
         # thrusters have; above 1 (inf if out of reach in any amount) when
         # saturated, and the commands are then the closest they can give.
@@ -94,6 +101,8 @@ class ThrustAllocation(Fmi2Slave):
     def allocate(self):
         n = len(self.allocator.layout.thrusters)
         available = [getattr(self, f"thruster{k}_available") for k in range(1, n + 1)]
+        for dof in DOFS:
+            setattr(self, f"tau_{dof}", sum(getattr(self, f"tau_{dof}_{term}") for term in TERMS))
         command = self.allocator.step((self.tau_X, self.tau_Y, self.tau_N), available)
         for k, (thrust, angle) in enumerate(zip(command.thrust, command.azimuth_deg), start=1):
             setattr(self, f"thruster{k}_thrust_command", float(thrust))

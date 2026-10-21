@@ -22,7 +22,7 @@ sys.path.insert(0, str(ROOT))                    # so models/ can be imported
 
 import numpy as np
 
-from models.dp_controller import DPController, rotation
+from models.dp_controller import DPController, rotation, total_tau
 
 CONFIG = ROOT / "config.toml"
 DT = 0.1                                         # time step [s], as in OspSystemStructure.xml
@@ -48,7 +48,7 @@ def simulate(eta0, b_ned):
         fmu.north_hat, fmu.east_hat, fmu.psi_hat = eta
         fmu.u_hat, fmu.v_hat, fmu.r_hat = nu
         fmu.do_step(t, DT)
-        tau = np.array([fmu.tau_X, fmu.tau_Y, fmu.tau_N])
+        tau = total_tau(fmu)
         # The vessel: one step (semi-implicit Euler: new velocity first, then position).
         nu = nu + DT * M_inv @ (tau + rotation(eta[2]).T @ b_ned - D @ nu)
         eta = eta + DT * rotation(eta[2]) @ nu
