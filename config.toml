@@ -286,3 +286,12 @@ diameter = 2.0
 power_kw = 900.0
 power_supply = [["SWBD 2", 1.0]]
 thrust_time_constant = 3.0
+
+# Gunnerus .mat hydrodynamics; shared wind/thruster geometry still needs calibration.
+[vessel_fmu]
+mat_file = "vessel_cosim/data/GunnerusL35_20201112.mat"
+# Frequency count, heading step and spacing default to Wamit.py settings.
+lf_reference_omega_rad_s = 0.2094395
+use_mat_viscous_damping = true
+# Select Newman or Sorensen at the top of vessel_cosim/WaveLoads.py.
+# The selected LF frequency is a fixed-coefficient approximation, not omega=0.

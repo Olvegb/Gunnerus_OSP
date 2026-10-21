@@ -21,5 +21,8 @@ for script in sorted((ROOT / "models").glob("*.py")):
     print(f"Building {script.name} ...")
     # sys.executable is the Python of the active conda environment, so its pythonfmu is used.
     # thruster_cosim/ and wave_cosim/ go into the FMU's resources/, which is on sys.path when the FMU runs.
-    subprocess.run([sys.executable, "-m", "pythonfmu", "build", "-f", script, ROOT / "thruster_cosim",
-                    ROOT / "wave_cosim", "-d", ROOT / "fmus"], check=True, env=env)
+    dependencies = [ROOT / "thruster_cosim", ROOT / "wave_cosim"]
+    if script.name == "vessel.py":
+        dependencies.append(ROOT / "vessel_cosim")
+    subprocess.run([sys.executable, "-m", "pythonfmu", "build", "-f", script,
+                    *dependencies, "-d", ROOT / "fmus"], check=True, env=env)
