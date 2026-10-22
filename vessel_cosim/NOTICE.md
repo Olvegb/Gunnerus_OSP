@@ -9,9 +9,11 @@ The standalone refactor adds explicit LF/WF interfaces, separate motion synthesi
 Coriolis forces, full-attitude steady-current conversion, validation, and tests.
 The original thesis files and installed toolbox were not modified.
 
-`data/gunnerus.json` is an unmodified copy of the supplied mcsimpy Gunnerus
-`vessel_2.json` dataset (Veres/ShipX). Its original provenance is retained in the
-file. No additional rights to third-party vessel data are asserted here.
+`data/tanker.mat` is a processed MSS WAMIT tanker example copied from the
+local MSS-master HYDRO library. It is not the Gunnerus vessel dataset and is not
+a physically validated LF/DP configuration. Its upstream terms/provenance must
+be preserved when distributing. No additional rights to third-party vessel
+data are asserted here.
 
 This project's derived source is distributed under GPL-3.0-or-later, without
 warranty. See LICENSE for the GPL version 3 text.

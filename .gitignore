@@ -1,4 +1,12 @@
 results/
 __pycache__/
 .venv
+fmus/ThrustAllocation.fmu
+fmus/ThrusterDynamics.fmu
+
+# Gunnerus vessel MATLAB data is shared privately, not via GitHub.
+/vessel_cosim/data/GunnerusL35_20201112.mat
+
+# Keep the tanker reference MATLAB dataset local only.
+/vessel_cosim/data/tanker.mat
 fmus/

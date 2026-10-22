@@ -7,7 +7,8 @@ from pythonfmu import Fmi2Slave, Fmi2Causality, Fmi2Variability, Real, String
 from vessel_cosim.LF import LF
 from vessel_cosim.WF import WF
 from vessel_cosim.WindModel import WindLoads
-from vessel_cosim.WaveLoads import WaveComponents, WaveLoads, ResponseTable
+from vessel_cosim.WaveLoads import WaveComponents, WaveLoads, ResponseTable, selected_drift_method
+from vessel_cosim.Wamit import load_mat_vessel, FREQUENCY_COUNT, HEADING_STEP_DEG, FREQUENCY_SPACING
 
 POSE = ('north', 'east', 'down', 'roll', 'pitch', 'yaw')
 VELOCITY = ('u', 'v', 'w', 'p', 'q', 'r')
@@ -16,10 +17,16 @@ N_WAVES = 100
 
 
 def read_table(data, kind):
+    # MATLAB inputs arrive as in-memory ResponseTables, not JSON dictionaries.
+    if isinstance(data, ResponseTable):
+        if data.kind != kind:
+            raise ValueError(f'Expected {kind}, got {data.kind}')
+        return data
     values = np.asarray(data['values_real'], dtype=float)
     if kind == 'rao':
         values = values + 1j*np.asarray(data['values_imag'], dtype=float)
     return ResponseTable(data['frequencies'], data['headings'], values, kind=kind)
+
 
 
 class VesselBlock(Fmi2Slave):
@@ -38,7 +45,8 @@ class VesselBlock(Fmi2Slave):
         self.register_variable(Real('max_internal_step_s', causality=Fmi2Causality.parameter,
             variability=Fmi2Variability.fixed))
         inputs = ['mean_wind_speed', 'slowly_varying_wind_speed', 'gust_wind_speed',
-                  'wind_direction_deg', 'X_thrusters', 'Y_thrusters', 'N_thrusters',
+                  'wind_direction_deg', 'X_thrusters', 'Y_thrusters', 'Z_thrusters',
+                  'K_thrusters', 'M_thrusters', 'N_thrusters',
                   'current_north', 'current_east', 'current_down']
         for name in inputs:
             self.add_real(name, Fmi2Causality.input)
@@ -84,10 +92,39 @@ class VesselBlock(Fmi2Slave):
         with path.open('rb') as stream:
             shared = tomllib.load(stream)
         settings = shared['vessel_fmu']
-        data_path = Path(settings['data_file'])
-        if not data_path.is_absolute():
-            data_path = path.parent / data_path
-        cfg = json.loads(data_path.read_text())
+        if 'mat_file' in settings:
+            # Load processed MSS/WAMIT hydrodynamics directly in memory.
+            # No raw WAMIT parser and no JSON conversion/preparation step.
+            data_path = Path(settings['mat_file'])
+            if not data_path.is_absolute():
+                data_path = path.parent / data_path
+            damping_matrix = settings.get('lf_additional_damping_matrix_si')
+            diagonal = settings.get('lf_viscous_damping_diagonal_si')
+            if damping_matrix is not None and diagonal is not None:
+                raise ValueError('Specify either LF damping matrix or LF damping diagonal')
+            if diagonal is not None:
+                diagonal = np.asarray(diagonal, dtype=float)
+                if diagonal.shape != (6,):
+                    raise ValueError('lf_viscous_damping_diagonal_si needs 6 values')
+                damping_matrix = np.diag(diagonal)
+            cfg = load_mat_vessel(
+                data_path,
+                frequency_count=int(settings.get('frequency_count', FREQUENCY_COUNT)),
+                heading_step_deg=int(settings.get('heading_step_deg', HEADING_STEP_DEG)),
+                frequency_spacing=settings.get('frequency_spacing', FREQUENCY_SPACING),
+                lf_reference_omega_rad_s=settings.get('lf_reference_omega_rad_s'),
+                additional_linear_damping_matrix_si=damping_matrix,
+                use_mat_viscous_damping=bool(settings.get('use_mat_viscous_damping', False)),
+                drift_method=selected_drift_method(),
+                require_simulation_ready=True,
+            )
+        else:
+            # Existing standalone synthetic fixture remains for unit tests;
+            # this is NOT real tanker/Gunnerus hydrodynamic data.
+            data_path = Path(settings['data_file'])
+            if not data_path.is_absolute():
+                data_path = path.parent / data_path
+            cfg = json.loads(data_path.read_text())
         if cfg.get('schema_version') != 1:
             raise ValueError('Expected hydrodynamic data schema_version 1')
         self.lf_model = LF(**{key: cfg[key] for key in ('rigid_mass', 'added_mass', 'damping', 'restoring')})
@@ -99,15 +136,18 @@ class VesselBlock(Fmi2Slave):
         wind['air_density'] = shared['environment']['air_density']
         self.wind_model = WindLoads(wind)
         gravity = cfg['gravity']
+        # Use the selected equation in WaveLoads.py for all vessel data sources.
+        drift_settings = dict(drift_method=selected_drift_method(),
+                              remove_sum_frequency=True)
         if 'wave_force_file' in cfg:
             force_path = Path(cfg['wave_force_file'])
             if not force_path.is_absolute():
                 force_path = data_path.parent/force_path
             self.wave_model = WaveLoads.from_shipx(force_path, phase_unit='deg',
-                amplitude_mode=cfg['force_amplitude_mode'], gravity=gravity)
+                amplitude_mode=cfg['force_amplitude_mode'], gravity=gravity, **drift_settings)
         else:
             self.wave_model = WaveLoads(read_table(cfg['force_table'], 'rao'),
-                read_table(cfg['drift_table'], 'drift'), gravity=gravity)
+                read_table(cfg['drift_table'], 'drift'), gravity=gravity, **drift_settings)
         # Explicit full-circle motion table: never guess the Gunnerus 19-column mapping.
         self.wf_model = WF(read_table(cfg['motion_table'], 'rao'), gravity=gravity)
         self.state = np.array([getattr(self, 'initial_'+s) for s in POSE+VELOCITY])
@@ -152,7 +192,8 @@ class VesselBlock(Fmi2Slave):
         if not np.isclose(current_time, self.time, atol=1e-8, rtol=0):
             raise ValueError('Time mismatch; rollback is unsupported')
         self.accept_waves()
-        thrust = np.array([self.X_thrusters, self.Y_thrusters, 0, 0, 0, self.N_thrusters])
+        thrust = np.array([self.X_thrusters, self.Y_thrusters, self.Z_thrusters,
+                           self.K_thrusters, self.M_thrusters, self.N_thrusters])
         current = np.array([self.current_north, self.current_east, self.current_down])
         count = int(np.ceil(step_size/self.max_internal_step_s))
         dt = step_size/count
