@@ -1,5 +1,4 @@
 results/
 __pycache__/
 .venv
-fmus/ThrustAllocation.fmu
-fmus/ThrusterDynamics.fmu
+fmus/
