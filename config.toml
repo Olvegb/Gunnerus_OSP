@@ -162,8 +162,21 @@ damping_matrix = [
 # Vessel FMU (models/vessel.py): 6-DOF LF + WF hull. The JSON file holds the
 # 6x6 matrices and hydrodynamic tables; the path is relative to this file.
 # SYNTHETIC test data for now, not RV Gunnerus.
+
+
+# Gunnerus .mat hydrodynamics; shared wind/thruster geometry still needs calibration.
 [vessel_fmu]
-data_file = "vessel_cosim/example_test_config.json"
+mat_file = "vessel_data/GunnerusL35_20201112.mat"
+
+# Frequency count, heading step and spacing default to Wamit.py settings.
+lf_reference_omega_rad_s = 0.2094395
+use_mat_viscous_damping = true
+
+# Select Newman or Sorensen at the top of vessel_cosim/WaveLoads.py.
+# The selected LF frequency is a fixed-coefficient approximation, not omega=0.
+
+
+
 
 # Blendermann (1994), Table 1. WindLoads uses the row named by [vessel] type.
 [blendermann]
@@ -300,11 +313,4 @@ power_kw = 900.0
 power_supply = [["SWBD 2", 1.0]]
 thrust_time_constant = 3.0
 
-# Gunnerus .mat hydrodynamics; shared wind/thruster geometry still needs calibration.
-[vessel_fmu]
-mat_file = "vessel_cosim/data/GunnerusL35_20201112.mat"
-# Frequency count, heading step and spacing default to Wamit.py settings.
-lf_reference_omega_rad_s = 0.2094395
-use_mat_viscous_damping = true
-# Select Newman or Sorensen at the top of vessel_cosim/WaveLoads.py.
-# The selected LF frequency is a fixed-coefficient approximation, not omega=0.
+
