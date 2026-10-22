@@ -9,3 +9,4 @@ fmus/ThrusterDynamics.fmu
 
 # Keep the tanker reference MATLAB dataset local only.
 /vessel_cosim/data/tanker.mat
+fmus/

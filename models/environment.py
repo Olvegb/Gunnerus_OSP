@@ -30,7 +30,7 @@ the direction.
 """
 import random
 import tomllib
-from math import cos, exp, log, pi, sqrt
+from math import cos, exp, log, pi, radians, sin, sqrt
 from pathlib import Path
 
 from pythonfmu import Fmi2Causality, Fmi2Slave, Fmi2Variability, Real, String
@@ -131,7 +131,9 @@ class Environment(Fmi2Slave):
         # OUTPUTS: current, NED frame, passed straight on from the config file.
         self.current_speed = 0.0            # [m/s]
         self.current_direction_deg = 0.0    # where the current flows TO, clockwise from north [deg]
-        for name in ("current_speed", "current_direction_deg"):
+        self.current_north = 0.0            # north component of the current velocity [m/s]
+        self.current_east = 0.0             # east component of the current velocity [m/s]
+        for name in ("current_speed", "current_direction_deg", "current_north", "current_east"):
             self.register_variable(Real(name, causality=Fmi2Causality.output))
 
     def exit_initialization_mode(self):
@@ -170,6 +172,8 @@ class Environment(Fmi2Slave):
         current = config["current"]
         self.current_speed = float(current["speed"])
         self.current_direction_deg = float(current["direction_deg"]) % 360.0
+        self.current_north = self.current_speed * cos(radians(self.current_direction_deg))
+        self.current_east = self.current_speed * sin(radians(self.current_direction_deg))
 
         # Calculate the outputs once already now, so they are correct from
         # time 0 and not 0.0 until the first step.

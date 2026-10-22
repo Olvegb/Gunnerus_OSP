@@ -14,7 +14,7 @@ sys.path.insert(0, str(ROOT))                    # so models/ can be imported
 
 import numpy as np
 
-from models.dp_controller import OUTPUTS, DPController
+from models.dp_controller import OUTPUTS, DPController, total_tau
 
 CONFIG = ROOT / "config.toml"
 DT = 0.1                                         # time step [s], as in OspSystemStructure.xml
@@ -34,7 +34,7 @@ def tau(**estimates):
     for name, value in estimates.items():
         setattr(fmu, name, np.radians(value) if name == "psi_hat" else value)
     fmu.do_step(0.0, DT)
-    return np.array([fmu.tau_X, fmu.tau_Y, fmu.tau_N]) + 0.0   # + 0.0 turns -0 into 0
+    return total_tau(fmu) + 0.0                  # + 0.0 turns -0 into 0
 
 
 def show(text, t, expected):

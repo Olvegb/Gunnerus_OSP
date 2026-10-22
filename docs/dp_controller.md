@@ -4,7 +4,7 @@ One FMU (FMI 2.0 co-simulation, built with pythonfmu 0.7.0, run in OSP) that hol
 set-point. It is a **simple PID**, there to close the loop so the whole simulator can run. Owner: Viljar.
 
 ```
-kalman_filter ──north_hat, east_hat, psi_hat, u_hat, v_hat, r_hat──► DPController ──tau_X, tau_Y, tau_N──► ThrustAllocation
+kalman_filter ──north_hat, east_hat, psi_hat, u_hat, v_hat, r_hat──► DPController ──tau_X_P ... tau_N_D──► ThrustAllocation
                                                                          │
                                                        [controller] and [vessel] in config.toml
 ```
@@ -30,8 +30,9 @@ kalman_filter ──north_hat, east_hat, psi_hat, u_hat, v_hat, r_hat──► D
 
 | Name | Unit | To | Description |
 |---|---|---|---|
-| `tau_X`, `tau_Y` | N | ThrustAllocation | Commanded force, body frame (x forward, y to starboard) |
-| `tau_N` | Nm | ThrustAllocation | Commanded yaw moment |
+| `tau_X_P`, `tau_X_I`, `tau_X_D` | N | ThrustAllocation | P, I and D term of the commanded surge force, body frame (x forward) |
+| `tau_Y_P`, `tau_Y_I`, `tau_Y_D` | N | ThrustAllocation | P, I and D term of the commanded sway force (y to starboard) |
+| `tau_N_P`, `tau_N_I`, `tau_N_D` | Nm | ThrustAllocation | P, I and D term of the commanded yaw moment |
 | `error_north`, `error_east` | m | logging | Position minus set-point, NED |
 | `error_heading_deg` | deg | logging | Heading minus set-point, −180 to 180 |
 
@@ -45,7 +46,11 @@ e_ned = [north_hat − north_ref,  east_hat − east_ref,  wrap(psi_hat − psi_
 e     = R(psi_hat)ᵀ e_ned                              error in the body frame
 z    += e dt                                           integral
 tau   = −Kp e − Ki z − Kd [u_hat, v_hat, r_hat]
+      =  tau_P  + tau_I  + tau_D
 ```
+
+The three terms are sent out one by one for each degree of freedom (`tau_<dof>_<term>`), so they can be
+logged and plotted. ThrustAllocation adds them up to `tau_X`, `tau_Y`, `tau_N`.
 
 - **D term on the estimated velocity**, so nothing is differentiated.
 - **wrap()** keeps the heading error between −180° and 180° (359° → −1°).
