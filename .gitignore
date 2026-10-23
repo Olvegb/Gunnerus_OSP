@@ -11,6 +11,7 @@ __pycache__/
 # Made by the simulation: the FMUs (ospfmusim.build) and one folder per run (ospfmusim.run)
 fmus/
 results/
+data_examples/GunnerusL35_20201112.mat
 
 # Written by src/ospfmusim/hull/tests/check_vessel_fmu.py
 TEST_RESULTS.json

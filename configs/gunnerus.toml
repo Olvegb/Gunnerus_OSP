@@ -34,7 +34,7 @@
 # =====================================================================
 
 [simulation]
-duration = 1200.0                 # how long the simulation runs [s]
+duration = 1000.0                 # how long the simulation runs [s]
 
 
 # =====================================================================
@@ -54,7 +54,7 @@ air_density = 1.226             # [kg/m^3], DNV-ST-0111 [3.5]
 # or rate_deg_per_s = 0 and std_deg = 0.
 
 [wind]
-mean_speed = 0.0               # mean wind speed, 1-hour mean [m/s]
+mean_speed = 10.0              # mean wind speed, 1-hour mean [m/s]
 direction_deg = 0.0            # mean direction the wind comes from [deg]
 reference_height = 10.0         # height the wind speed is given for [m]
 seed = 1                        # random seed; same seed = same wind
@@ -62,7 +62,7 @@ seed = 1                        # random seed; same seed = same wind
 # Slowly varying wind speed: first-order Gauss-Markov process.
 [wind.slowly_varying]
 time_constant = 1.0           # T, how slowly it changes [s]
-std = 0.0                       # standard deviation [m/s]
+std = 1.0                       # standard deviation [m/s]
 
 # Gusts: harmonics from the NORSOK N-003 / ISO 19901-1 (Froya) spectrum.
 # Keep f_min above the slowly varying band (about 1/(2 pi T) Hz), so the
@@ -70,13 +70,13 @@ std = 0.0                       # standard deviation [m/s]
 [wind.gust]
 f_min = 0.005                   # lowest frequency [Hz]
 f_max = 0.5                     # highest frequency [Hz]
-n_components = 0              # number of harmonics
+n_components = 20             # number of harmonics
 
 # Gradual change of the wind direction.
 [wind.direction_variation]
 rate_deg_per_s = 0.0            # constant turning rate, clockwise positive [deg/s]
 time_constant = 600.0           # T of the slow random variation [s]
-std_deg = 0.0                   # standard deviation of the slow random variation [deg]
+std_deg = 1.0                   # standard deviation of the slow random variation [deg]
 
 
 # ---------------------------------------------------------------------
@@ -89,8 +89,8 @@ std_deg = 0.0                   # standard deviation of the slow random variatio
 #                           or short-crested depending on [waves.spreading].
 
 [waves]
-hs = 0.00001                        # significant wave height H_s [m]  (regular: wave height H)
-tp = 1                        # peak wave period T_p [s]         (regular: wave period T)
+hs = 5.0                            # significant wave height H_s [m]  (regular: wave height H)
+tp = 9                        # peak wave period T_p [s]         (regular: wave period T)
 direction_deg = 45.0            # where the waves come from [deg]
 sea_type = "irregular"          # "regular" or "irregular"
 seed = 123                      # random seed; same seed = same sea
