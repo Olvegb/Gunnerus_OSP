@@ -91,15 +91,15 @@ Plus `mass_matrix` and `damping_matrix` in `[vessel]`, shared with the Kalman fi
 
 | File | What it does |
 |---|---|
-| `models/dp_controller.py` | The FMU, everything in one file (like `kalman_filter.py`) |
-| `tests/controller/check_dp_controller.py` | Signs: the force pushes back towards the set-point, also with another heading; wrap of the heading error; D term; anti-windup |
-| `tests/controller/check_closed_loop.py` | A very simple 3-DOF vessel (`M ν̇ + D ν = τ + Rᵀ b`) in plain Python, without OSP or a hull FMU: the vessel returns to the set-point and holds it against a constant force |
+| `src/ospfmusim/controller/dp_controller.py` | The FMU, everything in one file (like `ekf.py`) |
+| `src/ospfmusim/controller/tests/check_dp_controller.py` | Signs: the force pushes back towards the set-point, also with another heading; wrap of the heading error; D term; anti-windup |
+| `src/ospfmusim/controller/tests/check_closed_loop.py` | A very simple 3-DOF vessel (`M ν̇ + D ν = τ + Rᵀ b`) in plain Python, without OSP or a hull FMU: the vessel returns to the set-point and holds it against a constant force |
 
 Run from the repo folder (works on Mac):
 
 ```
-python tests/controller/check_dp_controller.py
-python tests/controller/check_closed_loop.py
+python src/ospfmusim/controller/tests/check_dp_controller.py
+python src/ospfmusim/controller/tests/check_closed_loop.py
 ```
 
 ## 5. Known limitations

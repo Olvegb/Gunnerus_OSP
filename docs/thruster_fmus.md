@@ -20,7 +20,7 @@ DP controller ──P, I, D terms of tau──► ThrustAllocation ──thrust 
 
 | File | What it is |
 |---|---|
-| `ThrustAllocation.fmu`, `ThrusterDynamics.fmu` | The two FMUs (win64 and linux64 binaries). Not in git: build them with `python build_fmus.py` |
+| `ThrustAllocation.fmu`, `ThrusterDynamics.fmu` | The two FMUs (win64 and linux64 binaries). Not in git: built into `src/ospfmusim/fmus/` by `python -m ospfmusim.build` (and by `python -m ospfmusim.run`) |
 | `configs/*.toml` | The thruster layout. Both FMUs read it themselves at start-up |
 
 - **Python must be installed.** pythonfmu FMUs do not bundle Python; they use the Python on the
@@ -29,10 +29,10 @@ DP controller ──P, I, D terms of tau──► ThrustAllocation ──thrust 
   - Run from Python with libcosimpy (tested with 0.0.6): the Python running the script is used, so
     nothing else is needed.
   - cosim CLI or OSP-GUI: not tested. The Python 3.11 DLL must be on PATH.
-- **`config_path`** is a parameter on both FMUs. A relative path such as `configs/config_test.toml` is read from
+- **`config_path`** is a parameter on both FMUs. A relative path such as `configs/tests.toml` is read from
   the folder the simulation is started from. With OSP-GUI, use a full path.
 - **Changing `configs/*.toml` needs no rebuild.** The FMUs read it every time the simulation starts.
-  Only a change to the Python code needs a rebuild (`python build_fmus.py`).
+  Only a change to the Python code needs a rebuild, which `python -m ospfmusim.run` does by itself (or `python -m ospfmusim.build`).
 
 ## 2. Frame and signs
 
@@ -129,12 +129,12 @@ Simulator and variable names on the other FMUs (`dp`, `vessel`, …) are placeho
 ```xml
 <Simulator name="allocation" source="fmus/ThrustAllocation.fmu">
     <InitialValues>
-        <InitialValue variable="config_path"><String value="configs/config_test.toml"/></InitialValue>
+        <InitialValue variable="config_path"><String value="configs/tests.toml"/></InitialValue>
     </InitialValues>
 </Simulator>
 <Simulator name="dynamics" source="fmus/ThrusterDynamics.fmu">
     <InitialValues>
-        <InitialValue variable="config_path"><String value="configs/config_test.toml"/></InitialValue>
+        <InitialValue variable="config_path"><String value="configs/tests.toml"/></InitialValue>
     </InitialValues>
 </Simulator>
 ```
@@ -230,7 +230,7 @@ max_azimuth_rate = 10.0       # [deg/s]
 | `thrust_time_constant` | no | Thrust lag [s]. Without it the thrust follows the command at once |
 | `max_azimuth_rate` | no | [deg/s]. Without it the azimuth turns at once |
 
-The thruster layout in `configs/config_test.toml` is a made-up ~80 m PSV: two azimuths aft (AZ1 port, AZ2 starboard,
+The thruster layout in `configs/tests.toml` is a made-up ~80 m PSV: two azimuths aft (AZ1 port, AZ2 starboard,
 x = −40 m) and two bow tunnels (BT1, BT2), two 3600 kW switchboards with a 10% reserve. The time
 constants (5 s azimuths, 3 s tunnels) and turn rates (10 °/s) are typical but made up.
 
@@ -253,7 +253,7 @@ constants (5 s azimuths, 3 s tunnels) and turn rates (10 °/s) are typical but m
 
 ## 8. Check that it runs
 
-With `configs/config_test.toml`, a constant τ = (0, 300 kN, 0), 60 s and steps of 0.1 s, the last
+With `configs/tests.toml`, a constant τ = (0, 300 kN, 0), 60 s and steps of 0.1 s, the last
 step should give:
 
 | Thruster | Command [kN @ °] | Actual [kN @ °] | Power [kW] |
