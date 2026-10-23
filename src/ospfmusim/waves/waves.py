@@ -1,9 +1,9 @@
 """Waves FMU: describes the sea as a set of regular wave components.
 
-Written the same way as models/test.py. The FMU has only ONE parameter,
-config_path, and reads the wave settings itself from [waves] in the config
-file when the simulation starts. The physics is in wave_cosim/; this file only
-moves values between FMI variables and that code.
+The FMU has only ONE parameter, config_path, and reads the wave settings
+itself from [waves] in the config file when the simulation starts. The physics
+is in helpfunctions/; this file only moves values between FMI variables and
+that code.
 
 The FMU only describes the sea. It does NOT calculate any forces on the
 vessel: the hull FMU does that from the wave components sent out here.
@@ -25,8 +25,8 @@ See docs/waves_fmu.md.
 import numpy as np
 from pythonfmu import Fmi2Causality, Fmi2Slave, Fmi2Variability, Real, String
 
-from wave_cosim.sea_state import directions_to, sea_from_settings
-from wave_cosim.settings import load_settings
+from ospfmusim.waves.helpfunctions.sea_state import directions_to, sea_from_settings
+from ospfmusim.waves.helpfunctions.settings import load_settings
 
 # A fixed number of wave components, so the FMI variables don't depend on the
 # config (the same idea as MAX_THRUSTERS in thrust_allocation.py). The

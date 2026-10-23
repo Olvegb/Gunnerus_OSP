@@ -1,6 +1,6 @@
 """Small tools for changing config.toml as TEXT, so the comments and layout are kept.
 
-Used by the results app (app/) and run_simulation.py.
+Used by the results app (src/app/build/) and ospfmusim/run.py.
 
 Only one-line values (numbers, booleans, strings, one-line lists) in [section]
 tables can be changed. Multi-line arrays (such as mass_matrix) and [[array

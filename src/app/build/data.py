@@ -3,9 +3,9 @@
 Plain Python and pandas, no Streamlit, so it can be used and checked on its own.
 
 The config files are in configs/, one .toml file per set-up. The default one is
-the file OspSystemStructure.xml points config_path to.
+the file src/ospfmusim/OspSystemStructure.xml points config_path to.
 
-run_simulation.py puts every run in its own folder, results/<YYYYMMDD_HHMMSS>[_name]/,
+ospfmusim/run.py puts every run in its own folder, results/<YYYYMMDD_HHMMSS>[_name]/,
 with a copy of the config it was run with (config.toml). libcosim writes one
 CSV per FMU there, named <simulator>_<YYYYMMDD>_<HHMMSS>_<microseconds>.csv,
 where <simulator> is the name in OspSystemStructure.xml (environment, vessel, ...).
@@ -18,10 +18,10 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-ROOT = Path(__file__).resolve().parents[1]       # the repo folder
+ROOT = Path(__file__).resolve().parents[3]       # the repo folder
 RESULTS = ROOT / "results"
 CONFIGS = ROOT / "configs"
-SYSTEM = ROOT / "OspSystemStructure.xml"
+SYSTEM = ROOT / "src" / "ospfmusim" / "OspSystemStructure.xml"
 
 CSV_NAME = re.compile(r"^(?P<simulator>.+)_\d{8}_\d{6}_\d+\.csv$")
 WAVE_COLUMN = re.compile(r"^wave\d+_")

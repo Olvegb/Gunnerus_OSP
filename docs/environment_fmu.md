@@ -132,13 +132,13 @@ wind every run. The waves have their own `seed` in `[waves]`.
 
 | File | What it does |
 |---|---|
-| `models/environment.py` | The FMU, everything in one file |
-| `tests/environment/check_environment.py` | Checks without OSP: everything switched off gives constant outputs; V_sv has zero mean, the right std and time constant, also with another step size; the gust std matches the NORSOK spectrum; the direction follows mean + rate · t and stays in [0, 360); the current components; the seed |
+| `src/ospfmusim/enviroment/environment.py` | The FMU, everything in one file |
+| `src/ospfmusim/enviroment/tests/check_environment.py` | Checks without OSP: everything switched off gives constant outputs; V_sv has zero mean, the right std and time constant, also with another step size; the gust std matches the NORSOK spectrum; the direction follows mean + rate · t and stays in [0, 360); the current components; the seed |
 
 Run from the repo folder:
 
 ```
-python tests/environment/check_environment.py
+python src/ospfmusim/enviroment/tests/check_environment.py
 ```
 
 Result with the default config:

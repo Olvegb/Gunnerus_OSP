@@ -2,7 +2,7 @@
 
 Run from the repo folder, with the master environment active:
 
-    streamlit run app/app.py
+    streamlit run src/app/build/app.py
 
 It opens in the browser. See docs/app.md.
 """
@@ -16,9 +16,9 @@ import plotly.io as pio
 import streamlit as st
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-import Gunnerus_OSP_sim.src.app.build.data as data  # noqa: E402
-import Gunnerus_OSP_sim.src.app.build.footprint as footprint  # noqa: E402
-import Gunnerus_OSP_sim.src.app.build.editor as editor  # noqa: E402
+import data  # noqa: E402
+import footprint  # noqa: E402
+import editor  # noqa: E402
 
 st.set_page_config(page_title="Gunnerus DP results", page_icon="⚓", layout="wide")
 
@@ -126,7 +126,7 @@ with tabs[0]:
 if not results:
     with tabs[1]:
         st.warning("No results to show yet. Make a run in the **New run** tab "
-                   "(or `python run_simulation.py`).")
+                   "(or `python -m ospfmusim.run`).")
     st.stop()
 
 # --- Overview --------------------------------------------------------

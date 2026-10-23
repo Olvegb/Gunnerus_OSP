@@ -1,20 +1,16 @@
-"""Quick check of wave_cosim/settings.py. Run from the repo folder:  python tests/waves/check_settings.py
+"""Quick check of waves/helpfunctions/settings.py.
+Run from the repo folder:  python src/ospfmusim/waves/tests/check_settings.py
 
 Reads [waves] from the config the simulation uses and builds the sea ONLY from that, the same way the Waves FMU does it.
 """
-import sys
 import tomllib
-from pathlib import Path
-
-ROOT = Path(__file__).resolve().parents[2]       # the repo folder
-sys.path.insert(0, str(ROOT))                    # so wave_cosim/ and models/ can be imported
 
 import numpy as np
 
-from Gunnerus_OSP_sim.src.app.build.data import default_config  # noqa: E402
-from models.waves import N_WAVES
-from wave_cosim.sea_state import sea_from_settings
-from wave_cosim.settings import load_settings, settings_from_config
+from app.build.data import default_config
+from ospfmusim.waves.helpfunctions.sea_state import sea_from_settings
+from ospfmusim.waves.helpfunctions.settings import load_settings, settings_from_config
+from ospfmusim.waves.waves import N_WAVES
 
 CONFIG = default_config()                        # the config the simulation uses (OspSystemStructure.xml)
 waves = tomllib.loads(CONFIG.read_text(encoding="utf-8-sig"))["waves"]

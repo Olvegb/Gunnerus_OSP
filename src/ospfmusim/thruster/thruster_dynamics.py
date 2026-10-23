@@ -1,9 +1,8 @@
 """ThrusterDynamics FMU: the thrusters following their commands, and the force on the vessel.
 
-Written the same way as models/windloads.py.
 The FMU has only ONE parameter, config_path, and reads the thrusters itself
 from the config file when the simulation starts. The dynamics are
-thruster_cosim.dynamics.ThrusterDynamics; this file only moves values
+helpfunctions.dynamics.ThrusterDynamics; this file only moves values
 between FMI variables and that code.
 
 The thrusters are slots, as in thrust_allocation.py: the k-th [[thrusters]]
@@ -25,8 +24,8 @@ import math
 
 from pythonfmu import Boolean, Fmi2Causality, Fmi2Slave, Fmi2Variability, Real, String
 
-from thruster_cosim import dynamics
-from thruster_cosim.layout import load_layout
+from ospfmusim.thruster.helpfunctions import dynamics
+from ospfmusim.thruster.helpfunctions.layout import load_layout
 
 # The same slots as in thrust_allocation.py.
 MAX_THRUSTERS = 8

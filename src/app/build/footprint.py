@@ -13,7 +13,7 @@ without asking Streamlit to redraw the page.
 import numpy as np
 import plotly.graph_objects as go
 
-import Gunnerus_OSP_sim.src.app.build.data as data
+import data
 
 HEADING_COLOUR = "#e4572e"
 ENVIRONMENT_COLOURS = {"Wind": "#3b82c4", "Waves": "#8e5cc7", "Current": "#1f9e89"}

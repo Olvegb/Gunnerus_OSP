@@ -1,8 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
   Describes the system itself: which FMUs are included, how they are
-  connected, and the step size. run_simulation.py, cosim CLI and OSP-GUI
+  connected, and the step size. ospfmusim/run.py, cosim CLI and OSP-GUI
   all read this file. The constants are NOT here, but in the config file in configs/.
+
+  The FMU paths (source="fmus/...") are relative to this file. build.py builds
+  the FMUs into fmus/ next to it.
 
   Signal flow (one closed DP loop):
 
@@ -45,14 +48,15 @@
     <Algorithm>fixedStep</Algorithm>
 
     <Simulators>
-        <!-- Relative paths are read from the folder the simulation is
-             started from. Use a full path, such as C:\...\configs\config_test.toml,
+        <!-- The FMUs read config_path relative to the folder the simulation is
+             started from (the repo folder). ospfmusim/run.py points it to the run's
+             own copy of the config. Use a full path, such as C:\...\configs\tests.toml,
              if the tool runs from another folder (for example OSP-GUI). -->
-        <!-- Wind, waves (sea state) and current, NED. See models/environment.py. -->
+        <!-- Wind, waves (sea state) and current, NED. See enviroment/environment.py. -->
         <Simulator name="environment" source="fmus/Environment.fmu">
             <InitialValues>
                 <InitialValue variable="config_path">
-                    <String value="configs/config_test.toml"/>
+                    <String value="configs/tests.toml"/>
                 </InitialValue>
             </InitialValues>
         </Simulator>
@@ -61,7 +65,7 @@
         <Simulator name="waves" source="fmus/Waves.fmu">
             <InitialValues>
                 <InitialValue variable="config_path">
-                    <String value="configs/config_test.toml"/>
+                    <String value="configs/tests.toml"/>
                 </InitialValue>
             </InitialValues>
         </Simulator>
@@ -70,7 +74,7 @@
         <Simulator name="vessel" source="fmus/VesselBlock.fmu">
             <InitialValues>
                 <InitialValue variable="config_path">
-                    <String value="configs/config_test.toml"/>
+                    <String value="configs/tests.toml"/>
                 </InitialValue>
             </InitialValues>
         </Simulator>
@@ -78,7 +82,7 @@
         <Simulator name="kalman_filter" source="fmus/ExtendedKalmanFilter.fmu">
             <InitialValues>
                 <InitialValue variable="config_path">
-                    <String value="configs/config_test.toml"/>
+                    <String value="configs/tests.toml"/>
                 </InitialValue>
             </InitialValues>
         </Simulator>
@@ -86,7 +90,7 @@
         <Simulator name="dp_controller" source="fmus/DPController.fmu">
             <InitialValues>
                 <InitialValue variable="config_path">
-                    <String value="configs/config_test.toml"/>
+                    <String value="configs/tests.toml"/>
                 </InitialValue>
             </InitialValues>
         </Simulator>
@@ -94,7 +98,7 @@
         <Simulator name="allocation" source="fmus/ThrustAllocation.fmu">
             <InitialValues>
                 <InitialValue variable="config_path">
-                    <String value="configs/config_test.toml"/>
+                    <String value="configs/tests.toml"/>
                 </InitialValue>
             </InitialValues>
         </Simulator>
@@ -102,19 +106,7 @@
         <Simulator name="dynamics" source="fmus/ThrusterDynamics.fmu">
             <InitialValues>
                 <InitialValue variable="config_path">
-                    <String value="configs/config_test.toml"/>
-                </InitialValue>
-            </InitialValues>
-        </Simulator>
-
-        <!-- Minimal example of the set-up: output = input * test. Not connected. -->
-        <Simulator name="test" source="fmus/Test.fmu">
-            <InitialValues>
-                <InitialValue variable="config_path">
-                    <String value="configs/config_test.toml"/>
-                </InitialValue>
-                <InitialValue variable="input">
-                    <Real value="3.0"/>
+                    <String value="configs/tests.toml"/>
                 </InitialValue>
             </InitialValues>
         </Simulator>

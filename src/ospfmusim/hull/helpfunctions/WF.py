@@ -22,7 +22,7 @@ class WF:
         self.set_components(WaveComponents([], [], [], []))
 
     def set_components(self, components):
-        # INPUT from waves via models/vessel.py:
+        # INPUT from waves via hull/vessel.py:
         # amplitude [m], omega [rad/s], phase [rad], direction [rad].
         if not isinstance(components, WaveComponents):
             raise TypeError('Expected WaveComponents')
@@ -48,5 +48,5 @@ class WF:
             raise ValueError('WF calculation produced nonfinite motion')
 
         # OUTPUT: [north,east,down,roll,pitch,yaw] WF increments (m/rad).
-        # models/vessel.py adds these to the LF pose for the total vessel pose.
+        # hull/vessel.py adds these to the LF pose for the total vessel pose.
         return wf_displacement

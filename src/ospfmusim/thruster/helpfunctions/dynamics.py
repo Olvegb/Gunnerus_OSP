@@ -9,7 +9,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from thruster_cosim.power import thruster_power_kw
+from .power import thruster_power_kw
 
 
 @dataclass(frozen=True)

@@ -1,7 +1,7 @@
 """Reads the wave settings from config.toml.
 
 The Waves FMU calls load_settings() in exit_initialization_mode(), the same
-way the thruster FMUs call thruster_cosim.layout.load_layout().
+way the thruster FMUs call helpfunctions.layout.load_layout().
 
 Hs, Tp and the wave direction are NOT read here: they come from the
 Environment FMU as inputs. Environment reads them from the same [waves] section.

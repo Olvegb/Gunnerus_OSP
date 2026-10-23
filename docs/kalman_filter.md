@@ -138,13 +138,13 @@ Plus `mass_matrix` and `damping_matrix` in `[vessel]`, and `tp` in `[waves]`.
 
 | File | What it does |
 |---|---|
-| `models/kalman_filter.py` | The FMU, everything in one file |
-| `tests/kalman/check_kalman_filter.py` | A simple 3-DOF "true" vessel with a constant disturbance and made-up WF motion, in plain Python without OSP: the LF and WF estimates follow the truth, the bias converges, and the heading wraps cleanly at ±π |
+| `src/ospfmusim/observer/ekf/ekf.py` | The FMU, everything in one file |
+| `src/ospfmusim/observer/ekf/tests/check_kalman_filter.py` | A simple 3-DOF "true" vessel with a constant disturbance and made-up WF motion, in plain Python without OSP: the LF and WF estimates follow the truth, the bias converges, and the heading wraps cleanly at ±π |
 
 Run from the repo folder:
 
 ```
-python tests/kalman/check_kalman_filter.py
+python src/ospfmusim/observer/ekf/tests/check_kalman_filter.py
 ```
 
 Result with the default config (last 300 s of 600 s):

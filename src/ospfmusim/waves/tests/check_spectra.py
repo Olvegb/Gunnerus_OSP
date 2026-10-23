@@ -1,12 +1,7 @@
-"""Quick check of spectra.py. Run from the repo folder:  python tests/waves/check_spectra.py"""
-import sys
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))   # the repo folder, so wave_cosim/ can be imported
-
+"""Quick check of spectra.py. Run from the repo folder:  python src/ospfmusim/waves/tests/check_spectra.py"""
 import numpy as np
 
-from wave_cosim.spectra import jonswap, pierson_moskowitz
+from ospfmusim.waves.helpfunctions.spectra import jonswap, pierson_moskowitz
 
 hs = 3.0   # significant wave height [m]
 tp = 9.0   # peak period [s]

@@ -1,8 +1,7 @@
 """DP controller FMU: a simple PID controller that holds the vessel at a set-point.
 
-Written the same way as models/test.py. The FMU has only ONE parameter,
-config_path, and reads [controller] and [vessel] from the config file when
-the simulation starts.
+The FMU has only ONE parameter, config_path, and reads [controller] and
+[vessel] from the config file when the simulation starts.
 
   - inputs:   the estimates from the ExtendedKalmanFilter FMU
               north_hat, east_hat [m], psi_hat [rad], u_hat, v_hat [m/s], r_hat [rad/s]

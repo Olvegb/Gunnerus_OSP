@@ -38,7 +38,7 @@ def flushing_sectors(thrusters):
 
     Parameters
     ----------
-    thrusters : sequence of thruster_cosim.layout.Thruster
+    thrusters : sequence of layout.Thruster
         The working thrusters. Each needs its diameter.
 
     Returns

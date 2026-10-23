@@ -1,7 +1,7 @@
 """Check the Environment FMU code WITHOUT building an FMU and without OSP.
-Run from the repo folder:  python tests/environment/check_environment.py
+Run from the repo folder:  python src/ospfmusim/enviroment/tests/check_environment.py
 
-Creates the Environment class from models/environment.py with the config the simulation uses,
+Creates the Environment class from enviroment/environment.py with the config the simulation uses,
 or with a copy of it where some values are changed, and checks:
 
   1. Everything switched off: the outputs are constant and equal to the config.
@@ -14,19 +14,15 @@ or with a copy of it where some values are changed, and checks:
   5. Current: north and east components match speed and direction.
   6. Seed: the same seed gives the same wind, another seed another wind.
 """
-import sys
 import tempfile
 from math import cos, exp, radians, sin
 from pathlib import Path
 import random
 
-ROOT = Path(__file__).resolve().parents[2]       # the repo folder
-sys.path.insert(0, str(ROOT))                    # so models/ can be imported
-
 import numpy as np
 
-from Gunnerus_OSP_sim.src.app.build.data import default_config  # noqa: E402
-from models.environment import Environment, GaussMarkov, norsok_wind_spectrum
+from app.build.data import default_config
+from ospfmusim.enviroment.environment import Environment, GaussMarkov, norsok_wind_spectrum
 
 CONFIG = default_config()                        # the config the simulation uses (OspSystemStructure.xml)
 DT = 0.1                                         # time step [s], as in OspSystemStructure.xml

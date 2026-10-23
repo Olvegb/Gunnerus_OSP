@@ -20,8 +20,8 @@ from itertools import product
 import numpy as np
 from scipy.optimize import linprog
 
-from thruster_cosim.power import supply_matrix, thruster_power_kw, usable_power_kw
-from thruster_cosim.zones import allowed_arcs, forbidden_zones
+from .power import supply_matrix, thruster_power_kw, usable_power_kw
+from .zones import allowed_arcs, forbidden_zones
 
 # LP tolerance, in units of utilisation: a tau that needs up to 1 + TOLERANCE
 # of the largest thrust still counts as feasible.
@@ -505,7 +505,7 @@ def allocate(thrusters, tau, n_sides=36, flushing=False, power_sources=None):
 
     Parameters
     ----------
-    thrusters : sequence of thruster_cosim.layout.Thruster
+    thrusters : sequence of layout.Thruster
         The working thrusters.
     tau : (X, Y, N)
         Commanded force [N] and moment [Nm] in the body frame (layout.py).
@@ -516,7 +516,7 @@ def allocate(thrusters, tau, n_sides=36, flushing=False, power_sources=None):
         True adds the DNV-ST-0111 [3.11.3] flushing sectors among these
         thrusters to their forbidden zones (zones.flushing_sectors(); every
         thruster then needs its diameter).
-    power_sources : sequence of thruster_cosim.layout.PowerSource, optional
+    power_sources : sequence of layout.PowerSource, optional
         Every thruster then needs power_kw and power_supply. None: no power
         limit.
 

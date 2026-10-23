@@ -1,7 +1,7 @@
 """Check the DPController FMU code WITHOUT building an FMU and without OSP.
-Run from the repo folder:  python tests/controller/check_dp_controller.py
+Run from the repo folder:  python src/ospfmusim/controller/tests/check_dp_controller.py
 
-Creates the DPController class from models/dp_controller.py and checks the
+Creates the DPController class from controller/dp_controller.py and checks the
 signs: the commanded force must push the vessel back towards the set-point,
 also when the vessel has another heading.
 
@@ -11,15 +11,11 @@ code 1 if a check fails.
 """
 import sys
 import tomllib
-from pathlib import Path
-
-ROOT = Path(__file__).resolve().parents[2]       # the repo folder
-sys.path.insert(0, str(ROOT))                    # so models/ can be imported
 
 import numpy as np
 
-from Gunnerus_OSP_sim.src.app.build.data import default_config  # noqa: E402
-from models.dp_controller import OUTPUTS, DPController, rotation, total_tau, wrap_angle
+from app.build.data import default_config
+from ospfmusim.controller.dp_controller import OUTPUTS, DPController, rotation, total_tau, wrap_angle
 
 CONFIG = default_config()                        # the config the simulation uses (OspSystemStructure.xml)
 DT = 0.1                                         # time step [s], as in OspSystemStructure.xml

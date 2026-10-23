@@ -19,7 +19,7 @@ def thruster_power_kw(thruster, thrust_fraction):
 
     Parameters
     ----------
-    thruster : thruster_cosim.layout.Thruster
+    thruster : layout.Thruster
         Needs power_kw.
     thrust_fraction : float or array-like
         r, 0 for no thrust and 1 for the largest thrust in that direction.
@@ -46,9 +46,9 @@ def supply_matrix(thrusters, sources):
 
     Parameters
     ----------
-    thrusters : sequence of thruster_cosim.layout.Thruster
+    thrusters : sequence of layout.Thruster
         Each with power_supply = ((source name, share), ...), shares summing to 1.
-    sources : sequence of thruster_cosim.layout.PowerSource
+    sources : sequence of layout.PowerSource
 
     Returns
     -------

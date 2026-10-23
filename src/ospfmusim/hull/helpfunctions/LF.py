@@ -47,7 +47,7 @@ class LF:
     # Body axes: forward, starboard, down. Positions: NED, angles: radians.
 
     def __init__(self, rigid_mass, added_mass, damping, restoring):
-        # Inputs from Wamit.py result, passed by models/vessel.py:
+        # Inputs from Wamit.py result, passed by hull/vessel.py:
         self.M_RB = checked(rigid_mass, (6, 6), "rigid_mass")  # "rigid_mass": MRB
         self.A = checked(added_mass, (6, 6), "added_mass")    # "added_mass": A(omega_LF)
         self.D = checked(damping, (6, 6), "damping")          # "damping": B(omega_LF) + Bv
@@ -58,7 +58,7 @@ class LF:
 
     # @classmethod
     # def from_shipx(cls, path, *, frequency):
-    #     # Legacy JSON loader; Gunnerus .mat is supplied through models/vessel.py.
+    #     # Legacy JSON loader; Gunnerus .mat is supplied through hull/vessel.py.
     #     import json
     #     from pathlib import Path
     #     data = json.loads(Path(path).read_text())

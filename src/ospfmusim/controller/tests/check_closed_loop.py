@@ -1,5 +1,5 @@
 """Check that the DP controller can hold a vessel, WITHOUT OSP and without a hull FMU.
-Run from the repo folder:  python tests/controller/check_closed_loop.py
+Run from the repo folder:  python src/ospfmusim/controller/tests/check_closed_loop.py
 
 A very simple 3-DOF vessel, only for this check (not the hull model):
 
@@ -13,17 +13,12 @@ filter) and the thrusters give exactly the commanded force.
 The vessel starts away from the set-point and must come back and stay there,
 also with the constant force pushing it away. That needs the I term.
 """
-import sys
 import tomllib
-from pathlib import Path
-
-ROOT = Path(__file__).resolve().parents[2]       # the repo folder
-sys.path.insert(0, str(ROOT))                    # so models/ can be imported
 
 import numpy as np
 
-from Gunnerus_OSP_sim.src.app.build.data import default_config  # noqa: E402
-from models.dp_controller import DPController, rotation, total_tau
+from app.build.data import default_config
+from ospfmusim.controller.dp_controller import DPController, rotation, total_tau
 
 CONFIG = default_config()                        # the config the simulation uses (OspSystemStructure.xml)
 DT = 0.1                                         # time step [s], as in OspSystemStructure.xml

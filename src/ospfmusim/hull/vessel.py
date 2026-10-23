@@ -4,11 +4,13 @@ import tomllib
 from pathlib import Path
 import numpy as np
 from pythonfmu import Fmi2Slave, Fmi2Causality, Fmi2Variability, Real, String
-from vessel_cosim.LF import LF
-from vessel_cosim.WF import WF
-from vessel_cosim.WindModel import WindLoads
-from vessel_cosim.WaveLoads import WaveComponents, WaveLoads, ResponseTable, selected_drift_method
-from vessel_cosim.Wamit import load_mat_vessel, FREQUENCY_COUNT, HEADING_STEP_DEG, FREQUENCY_SPACING
+from ospfmusim.hull.helpfunctions.LF import LF
+from ospfmusim.hull.helpfunctions.WF import WF
+from ospfmusim.hull.helpfunctions.WindModel import WindLoads
+from ospfmusim.hull.helpfunctions.WaveLoads import (WaveComponents, WaveLoads, ResponseTable,
+                                                     selected_drift_method)
+from ospfmusim.hull.helpfunctions.Wamit import (load_mat_vessel, FREQUENCY_COUNT, HEADING_STEP_DEG,
+                                                FREQUENCY_SPACING)
 
 POSE = ('north', 'east', 'down', 'roll', 'pitch', 'yaw')
 VELOCITY = ('u', 'v', 'w', 'p', 'q', 'r')

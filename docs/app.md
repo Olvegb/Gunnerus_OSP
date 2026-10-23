@@ -11,7 +11,8 @@ From the repo folder, with the `master` environment active:
 ```powershell
 conda activate master
 pip install -r requirements.txt     # once: includes streamlit and plotly
-streamlit run app/app.py
+pip install -e .                    # once: makes src/ importable
+python -m app.run                   # the same as: streamlit run src/app/build/app.py
 ```
 
 The app opens at http://localhost:8501. Stop it with Ctrl+C in the terminal.
@@ -20,9 +21,9 @@ The app opens at http://localhost:8501. Stop it with Ctrl+C in the terminal.
 
 Every run gets its own folder, `results/<YYYYMMDD_HHMMSS>[_name]/`, with one CSV per FMU and a copy of
 the config it was run with (`config.toml`). Nothing is overwritten, so earlier runs stay available.
-This is the same whether the run is started from the app or with `python run_simulation.py`.
+This is the same whether the run is started from the app or with `python -m ospfmusim.run`.
 
-The run's copy of the config is what the FMUs read: `run_simulation.py` points `config_path` on every
+The run's copy of the config is what the FMUs read: `src/ospfmusim/run.py` points `config_path` on every
 FMU to it, so `OspSystemStructure.xml` is not changed. Relative file paths in the copy (such as
 `[vessel_fmu] data_file`) are made absolute, because the copy lies in another folder.
 
@@ -36,7 +37,7 @@ FMU to it, so `OspSystemStructure.xml` is not changed. Relative file paths in th
    comma-separated.
 3. **Run name** (optional) is added to the folder name.
 4. **Run simulation.** The app writes a copy of the config with your changes, runs
-   `run_simulation.py` with it, and selects the new run in the sidebar. The output of the script is
+   `python -m ospfmusim.run` with it, and selects the new run in the sidebar. The output of the script is
    shown at the top of the tab.
 
 **Save as default** writes the values in the form into the file chosen in **Save as default in** (a file in
@@ -80,11 +81,11 @@ Angles are shown in degrees, also where the FMU uses radians (vessel `yaw`, filt
 
 | File | What it does |
 |---|---|
-| `app/app.py` | The Streamlit app: sidebar and tabs |
-| `app/footprint.py` | The animated footprint in the Overview tab |
-| `app/editor.py` | The New run tab: the inputs, running the simulation, saving as default |
-| `app/data.py` | Reads the run folders, the result CSVs and the config, key numbers. Plain Python and pandas, no Streamlit |
-| `app/config_tools.py` | Changes values in the config as text, so the comments are kept. Also used by `run_simulation.py` |
+| `src/app/build/app.py` | The Streamlit app: sidebar and tabs |
+| `src/app/build/footprint.py` | The animated footprint in the Overview tab |
+| `src/app/build/editor.py` | The New run tab: the inputs, running the simulation, saving as default |
+| `src/app/build/data.py` | Reads the run folders, the result CSVs and the config, key numbers. Plain Python and pandas, no Streamlit |
+| `src/app/build/config_tools.py` | Changes values in the config as text, so the comments are kept. Also used by `src/ospfmusim/run.py` |
 
 ## Known limitations
 

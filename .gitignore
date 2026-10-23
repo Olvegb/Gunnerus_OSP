@@ -1,9 +1,16 @@
-results/
+# Python
 __pycache__/
-.venv
-fmus/ThrustAllocation.fmu
-fmus/ThrusterDynamics.fmu
+.venv/
 
-# Gunnerus vessel MATLAB data is shared privately, not via GitHub.
+# Made by pip install -e . and by building a wheel. /build/ is anchored to the
+# repo folder, so src/app/build/ is not ignored.
+*.egg-info/
+/build/
+/dist/
+
+# Made by the simulation: the FMUs (ospfmusim.build) and one folder per run (ospfmusim.run)
 fmus/
-vessel_data/
+results/
+
+# Written by src/ospfmusim/hull/tests/check_vessel_fmu.py
+TEST_RESULTS.json

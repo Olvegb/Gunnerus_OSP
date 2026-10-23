@@ -93,17 +93,17 @@ sea. A wrong name (for example `type = "cos-2s"`) stops the simulation at the st
 ## 4. `N_WAVES` is special
 
 An FMU has a fixed number of outputs, decided when it is **built**. So `N_WAVES` is a constant at
-the top of `models/waves.py` (the same idea as `MAX_THRUSTERS` in `thrust_allocation.py`), not in
+the top of `src/ospfmusim/waves/waves.py` (the same idea as `MAX_THRUSTERS` in `thrust_allocation.py`), not in
 `configs/*.toml`. After changing it:
 
-1. run `python build_fmus.py`,
+1. rebuild: `python -m ospfmusim.build` (or run the simulation, which rebuilds it),
 2. redo the connections to the hull FMU in `OspSystemStructure.xml` (4 per wave component).
 
 ## 5. How it works
 
 ```
 H_s, T_p
-   ↓  wave_cosim/spectra.py + sea_state.py: realize()
+   ↓  helpfunctions/spectra.py + sea_state.py: realize()
 n_frequencies x n_directions wave components       (regular sea: regular_wave(), one wave)
    ↓  sea_state.py: keep_strongest()
 the N_WAVES components with the most energy (Sørensen 6.2.1, method 1)
@@ -121,26 +121,26 @@ the energy is kept (0.93 with the current config).
 
 | File | What it does |
 |---|---|
-| `models/waves.py` | The FMU: inputs, outputs, `config_path`, `do_step`. `N_WAVES` is set here |
-| `wave_cosim/spectra.py` | Wave spectra (Pierson–Moskowitz, JONSWAP) and the cos-2s spreading function |
-| `wave_cosim/sea_state.py` | Regular wave, or splits the spectrum into wave components and keeps the strongest. Adds the mean direction |
-| `wave_cosim/settings.py` | Reads `[waves]` from `configs/*.toml` and checks the names |
-| `tests/waves/check_*.py` | Check scripts, see below |
+| `src/ospfmusim/waves/waves.py` | The FMU: inputs, outputs, `config_path`, `do_step`. `N_WAVES` is set here |
+| `src/ospfmusim/waves/helpfunctions/spectra.py` | Wave spectra (Pierson–Moskowitz, JONSWAP) and the cos-2s spreading function |
+| `src/ospfmusim/waves/helpfunctions/sea_state.py` | Regular wave, or splits the spectrum into wave components and keeps the strongest. Adds the mean direction |
+| `src/ospfmusim/waves/helpfunctions/settings.py` | Reads `[waves]` from `configs/*.toml` and checks the names |
+| `src/ospfmusim/waves/tests/check_*.py` | Check scripts, see below |
 
-`build_fmus.py` builds `wave_cosim/` into the FMU's `resources/`, the same way as `thruster_cosim/`.
+`src/ospfmusim/build.py` builds the model folders of `src/ospfmusim` (with `waves/helpfunctions/`) into every FMU's `resources/`.
 
 ## 7. Check
 
 Run from the repo folder. All of these work on Mac (they do not need OSP).
 
 ```
-python tests/waves/check_spectra.py     # H_s from the spectrum area, peak position
-python tests/waves/check_sea_state.py   # H_s, spreading, repetition, strongest components, directions, sea types
-python tests/waves/check_settings.py    # [waves] in configs/*.toml builds the sea, wrong names are caught
-python tests/waves/check_waves_fmu.py   # the FMU class: outputs, new direction, calm sea, regular sea, errors
+python src/ospfmusim/waves/tests/check_spectra.py     # H_s from the spectrum area, peak position
+python src/ospfmusim/waves/tests/check_sea_state.py   # H_s, spreading, repetition, strongest components, directions, sea types
+python src/ospfmusim/waves/tests/check_settings.py    # [waves] in configs/*.toml builds the sea, wrong names are caught
+python src/ospfmusim/waves/tests/check_waves_fmu.py   # the FMU class: outputs, new direction, calm sea, regular sea, errors
 ```
 
-Running the whole system (`python run_simulation.py`) needs Windows or Linux: pythonfmu only
+Running the whole system (`python -m ospfmusim.run`) needs Windows or Linux: pythonfmu only
 includes `win64` and `linux64` binaries, and libcosimpy is not available for Mac.
 
 ## 8. Known limitations

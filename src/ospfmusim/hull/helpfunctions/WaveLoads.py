@@ -356,7 +356,7 @@ class _ResponseTableVessel:
 
 
 class WaveLoads:
-    # Adapter between original Viljar wave model and models/vessel.py.
+    # Adapter between original Viljar wave model and hull/vessel.py.
 
     def __init__(self, force_table, drift_table, *, gravity=9.81,
                  drift_method=None, remove_sum_frequency=True):
@@ -396,7 +396,7 @@ class WaveLoads:
     #     return obj
 
     def set_components(self, components):
-        # INPUT via models/vessel.py: WaveComponents(amplitude, omega, phase, direction).
+        # INPUT via hull/vessel.py: WaveComponents(amplitude, omega, phase, direction).
         if not isinstance(components, WaveComponents):
             raise TypeError('Expected WaveComponents')
         self.components = components

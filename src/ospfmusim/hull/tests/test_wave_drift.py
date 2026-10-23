@@ -1,11 +1,8 @@
 """Analytical checks independent of the fast single-sum implementation."""
 import unittest
 from unittest.mock import patch
-from pathlib import Path
-import sys
 import numpy as np
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-from vessel_cosim.WaveLoads import WaveLoadModel, selected_drift_method
+from ospfmusim.hull.helpfunctions.WaveLoads import WaveLoadModel, selected_drift_method
 
 
 class Tables:
@@ -31,21 +28,21 @@ def model(coefficients, method='sorensen_6_99', amplitudes=None, filtered=True):
 
 class DriftChecks(unittest.TestCase):
     def test_top_level_control_selects_both_methods(self):
-        with patch("vessel_cosim.WaveLoads.DRIFT_METHOD", "newman"):
+        with patch("ospfmusim.hull.helpfunctions.WaveLoads.DRIFT_METHOD", "newman"):
             self.assertEqual(selected_drift_method(), "newman_6_97")
             self.assertEqual(WaveLoadModel(Tables([[2.], [3.], [-4.]]), 9.81).drift_method,
                              "newman_6_97")
-        with patch("vessel_cosim.WaveLoads.DRIFT_METHOD", "sorensen"):
+        with patch("ospfmusim.hull.helpfunctions.WaveLoads.DRIFT_METHOD", "sorensen"):
             self.assertEqual(selected_drift_method(), "sorensen_6_99")
             self.assertEqual(WaveLoadModel(Tables([[2.], [3.], [4.]]), 9.81).drift_method,
                              "sorensen_6_99")
-        with patch("vessel_cosim.WaveLoads.DRIFT_METHOD", "invalid"):
+        with patch("ospfmusim.hull.helpfunctions.WaveLoads.DRIFT_METHOD", "invalid"):
             with self.assertRaisesRegex(ValueError, "DRIFT_METHOD"):
                 selected_drift_method()
 
     def test_sorensen_control_refuses_signed_gunnerus(self):
-        from vessel_cosim.Wamit import load_gunnerus
-        with patch("vessel_cosim.WaveLoads.DRIFT_METHOD", "sorensen"):
+        from ospfmusim.hull.helpfunctions.Wamit import load_gunnerus
+        with patch("ospfmusim.hull.helpfunctions.WaveLoads.DRIFT_METHOD", "sorensen"):
             with self.assertRaisesRegex(ValueError, "Signed drift"):
                 load_gunnerus()
 

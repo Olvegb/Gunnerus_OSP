@@ -1,7 +1,7 @@
 """The "New run" tab of the results app: edit config values and run a new simulation.
 
 The edited values are written into a copy of the config (config_tools.set_values,
-which keeps the comments), and run_simulation.py runs with that copy. The run
+which keeps the comments), and ospfmusim/run.py runs with that copy. The run
 gets its own folder in results/ with the copy saved as config.toml.
 The files in configs/ only change when "Save as default" is pressed.
 """
@@ -15,8 +15,8 @@ from pathlib import Path
 
 import streamlit as st
 
-import Gunnerus_OSP_sim.src.app.build.config_tools as config_tools
-import Gunnerus_OSP_sim.src.app.build.data as data
+import config_tools
+import data
 
 # The sections that can be edited, grouped as in the config file. Multi-line arrays
 # (mass_matrix, damping_matrix), [blendermann] and the [[thrusters]] layout are
@@ -97,10 +97,10 @@ def widget(section, key, value, help_text, prefix, choices):
 
 
 def run_simulation(config_text, name):
-    """Runs run_simulation.py with config_text. Returns (ok, output, run folder or None)."""
+    """Runs ospfmusim/run.py with config_text. Returns (ok, output, run folder or None)."""
     with tempfile.NamedTemporaryFile("w", suffix=".toml", delete=False, encoding="utf-8") as file:
         file.write(config_text)
-    command = [sys.executable, "run_simulation.py", "--config", file.name]
+    command = [sys.executable, "-m", "ospfmusim.run", "--config", file.name]
     if name:
         command += ["--name", name]
     run = subprocess.run(command, cwd=data.ROOT, capture_output=True, text=True)
@@ -117,7 +117,7 @@ def render():
         (st.success if ok else st.error)(
             f"Run finished: {folder.name}. It is selected in the sidebar." if ok
             else "The simulation failed. See the output below.")
-        with st.expander("Output of run_simulation.py", expanded=not ok):
+        with st.expander("Output of python -m ospfmusim.run", expanded=not ok):
             st.code(output)
 
     # Where the values start from: a file in configs/, or the config of an earlier run.

@@ -4,7 +4,6 @@ The explicit zero-viscous-damping choice below is ONLY a code-path smoke test,
 not a physically calibrated tanker model.
 """
 import re
-import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -12,14 +11,12 @@ from pathlib import Path
 import numpy as np
 from scipy.io import loadmat
 
-ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(ROOT))
+from app.build.data import default_config
+from ospfmusim.hull.helpfunctions.Wamit import (load_mat_vessel, FREQUENCY_COUNT, HEADING_STEP_DEG,
+                                                FREQUENCY_SPACING)
+from ospfmusim.hull.helpfunctions.WaveLoads import ResponseTable, selected_drift_method
 
-from vessel_cosim.Wamit import load_mat_vessel, FREQUENCY_COUNT, HEADING_STEP_DEG, FREQUENCY_SPACING
-from vessel_cosim.WaveLoads import ResponseTable, selected_drift_method
-from Gunnerus_OSP_sim.src.app.build.data import default_config
-
-MAT = ROOT / "vessel_cosim/data/tanker.mat"
+MAT = Path(__file__).resolve().parents[1] / "helpfunctions" / "data" / "tanker.mat"
 
 
 @unittest.skipUnless(MAT.exists() and (MAT.parent / "GunnerusL35_20201112.mat").exists(),
@@ -73,7 +70,7 @@ class TestMatLoader(unittest.TestCase):
         self.assertTrue(np.isfinite(data["damping"]).all())
 
     def test_fmu_can_initialize_from_mat_with_explicit_test_settings(self):
-        from models.vessel import VesselBlock
+        from ospfmusim.hull.vessel import VesselBlock
         shared = default_config().read_text(encoding="utf-8-sig")
         self.assertIn("[vessel_fmu]", shared)
         test_block = (
@@ -102,7 +99,7 @@ class TestMatLoader(unittest.TestCase):
 
     def test_active_gunnerus_lf_receives_exact_loader_matrices(self):
         import tomllib
-        from models.vessel import VesselBlock
+        from ospfmusim.hull.vessel import VesselBlock
         config = default_config()                # the config the simulation uses
         with config.open("rb") as stream:
             s = tomllib.load(stream)["vessel_fmu"]

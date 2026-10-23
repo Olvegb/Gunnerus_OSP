@@ -1,9 +1,8 @@
 """ThrustAllocation FMU: the thrust and azimuth command for each thruster.
 
-Written the same way as models/windloads.py.
 The FMU has only ONE parameter, config_path, and reads the thrusters itself
 from the config file when the simulation starts. The allocation is
-thruster_cosim.allocation.ThrustAllocator; this file only moves values
+helpfunctions.allocation.ThrustAllocator; this file only moves values
 between FMI variables and that code.
 
 The thrusters are slots: the k-th [[thrusters]] entry in config.toml is
@@ -22,8 +21,8 @@ The FMU's life cycle:
 """
 from pythonfmu import Boolean, Fmi2Causality, Fmi2Slave, Fmi2Variability, Real, String
 
-from thruster_cosim.allocation import ThrustAllocator
-from thruster_cosim.layout import load_layout
+from ospfmusim.thruster.helpfunctions.allocation import ThrustAllocator
+from ospfmusim.thruster.helpfunctions.layout import load_layout
 
 # ponytail: a fixed number of slots, so the FMI variables don't depend on the
 # config. For a bigger layout, raise it here and in thruster_dynamics.py and rebuild.

@@ -1,4 +1,4 @@
-"""Checks of the ExtendedKalmanFilter FMU (models/kalman_filter.py), without OSP.
+"""Checks of the ExtendedKalmanFilter FMU (observer/ekf/ekf.py), without OSP.
 
 A simple "true" 3-DOF vessel, M nu_dot + D nu = tau + R^T b, is simulated in
 plain Python with the matrices in the config the simulation uses, a constant disturbance b in NED
@@ -12,19 +12,14 @@ Checks:
   3. The bias estimate converges to the true disturbance.
   4. Heading wrap: a heading near +-pi gives no jump in the estimate.
 
-Run from the repo folder:  python tests/kalman/check_kalman_filter.py
+Run from the repo folder:  python src/ospfmusim/observer/ekf/tests/check_kalman_filter.py
 """
-import sys
 import tomllib
-from pathlib import Path
 
 import numpy as np
 
-ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(ROOT / "models"))
-sys.path.insert(0, str(ROOT))                    # so app/ can be imported
-from Gunnerus_OSP_sim.src.app.build.data import default_config  # noqa: E402
-from Gunnerus_OSP_sim.src.ospfmusim.observer.ekf.ekf import ExtendedKalmanFilter, rotation, wrap_angle  # noqa: E402
+from app.build.data import default_config
+from ospfmusim.observer.ekf.ekf import ExtendedKalmanFilter, rotation, wrap_angle
 
 CONFIG = default_config()                        # the config the simulation uses (OspSystemStructure.xml)
 DT = 0.1

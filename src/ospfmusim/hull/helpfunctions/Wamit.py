@@ -16,7 +16,7 @@ except ImportError:  # VS Code: Run Python File
 
 
 # ---------------- SETTINGS: edit these ----------------
-GUNNERUS_FILE = Path(__file__).resolve().parent / "data" / "GunnerusL35_20201112.mat"
+GUNNERUS_FILE = Path(__file__).resolve().parents[4] / "data_examples" / "GunnerusL35_20201112.mat"
 FREQUENCY_COUNT = 100
 HEADING_STEP_DEG = 10
 FREQUENCY_SPACING = "log"       # "log" or "linear"

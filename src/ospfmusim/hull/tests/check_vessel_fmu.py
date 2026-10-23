@@ -1,27 +1,27 @@
 """Execute the real FMU and compare with independent calls to the four modules."""
 from pathlib import Path
-import json, re, sys, tempfile, tomllib
+import json, re, tempfile, tomllib
 import numpy as np
 from fmpy import extract, read_model_description
 from fmpy.fmi2 import FMU2Slave
 from fmpy.validation import validate_fmu
-ROOT=Path(__file__).resolve().parents[2]
-sys.path.insert(0,str(ROOT))
-from vessel_cosim.LF import LF
-from vessel_cosim.WF import WF
-from vessel_cosim.WindModel import WindLoads
-from vessel_cosim.WaveLoads import WaveLoads,WaveComponents
-from models.vessel import read_table,POSE,VELOCITY
-from Gunnerus_OSP_sim.src.app.build.data import default_config
+from app.build.data import default_config
+from ospfmusim.build import PACKAGE
+from ospfmusim.hull.helpfunctions.LF import LF
+from ospfmusim.hull.helpfunctions.WF import WF
+from ospfmusim.hull.helpfunctions.WindModel import WindLoads
+from ospfmusim.hull.helpfunctions.WaveLoads import WaveLoads,WaveComponents
+from ospfmusim.hull.vessel import read_table,POSE,VELOCITY
+HELP=PACKAGE/'hull'/'helpfunctions'
 
 def main():
-    file=ROOT/'fmus/VesselBlock.fmu'
+    file=PACKAGE/'fmus/VesselBlock.fmu'
     assert not validate_fmu(str(file)),validate_fmu(str(file))
     md=read_model_description(str(file),validate=True)
     refs={v.name:v.valueReference for v in md.modelVariables}
-    cfg=json.loads((ROOT/'vessel_cosim/example_test_config.json').read_text())
+    cfg=json.loads((HELP/'example_test_config.json').read_text())
     # The config the simulation uses, with [vessel_fmu] pointing to the synthetic JSON fixture.
-    data_file=(ROOT/'vessel_cosim/example_test_config.json').as_posix()
+    data_file=(HELP/'example_test_config.json').as_posix()
     text=re.sub(r'^\[vessel_fmu\]\n.*?(?=^\[)',lambda _:f'[vessel_fmu]\ndata_file = "{data_file}"\n\n',
                 default_config().read_text(encoding='utf-8-sig'),count=1,flags=re.M|re.S)
     config=Path(tempfile.mkdtemp())/'config.toml';config.write_text(text,encoding='utf-8')
@@ -35,7 +35,7 @@ def main():
     with tempfile.TemporaryDirectory() as temp:
         directory=extract(str(file),unzipdir=temp)
         for name in ('LF.py','WF.py','WindModel.py','WaveLoads.py'):
-            assert (Path(temp)/'resources'/'vessel_cosim'/name).read_bytes()==(ROOT/'vessel_cosim'/name).read_bytes()
+            assert (Path(temp)/'resources'/'ospfmusim'/'hull'/'helpfunctions'/name).read_bytes()==(HELP/name).read_bytes()
         checks.append('Packaged calculation modules match repository source')
         cases={'calm':{},'thrusters':{'X_thrusters':10000,'Y_thrusters':2000,'N_thrusters':30000},
                'wind':{'mean_wind_speed':15,'wind_direction_deg':90},
@@ -84,6 +84,6 @@ def main():
             finally:f.terminate();f.freeInstance()
             checks.append(f'{label}: native FMI stepping matched module calls; max error {max_error:.3g}; reset passed')
     report={'fmu':str(file),'configuration':'SYNTHETIC software integration fixture; NOT calibrated Gunnerus data', 'checks':checks}
-    (ROOT/'tests/vessel/TEST_RESULTS.json').write_text(json.dumps(report,indent=2)+'\n')
+    (Path(__file__).parent/'TEST_RESULTS.json').write_text(json.dumps(report,indent=2)+'\n')
     print('\n'.join(checks))
 if __name__=='__main__':main()

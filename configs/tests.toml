@@ -7,8 +7,7 @@
 #
 #   Section                              Read by
 #   -----------------------------------  ---------------------------------
-#   [simulation]                         run_simulation.py
-#   [test]                               Test FMU (example only)
+#   [simulation]                         ospfmusim/run.py
 #   [environment] [wind] [current]       Environment FMU
 #   [waves]                              Environment FMU (hs, tp, direction)
 #                                        and Waves FMU (the rest)
@@ -18,7 +17,7 @@
 #   [controller]                         DPController FMU
 #   [kalman_filter]                      ExtendedKalmanFilter FMU
 #   [allocation] [[power_sources]]       ThrustAllocation and ThrusterDynamics
-#   [[thrusters]]                        FMUs, through thruster_cosim/layout.py
+#   [[thrusters]]                        FMUs, through thruster/helpfunctions/layout.py
 #
 # Conventions:
 #   - Frames: NED for the environment, body frame (x forward, y starboard,
@@ -36,10 +35,6 @@
 
 [simulation]
 duration = 10.0                 # how long the simulation runs [s]
-
-# Only there to illustrate the set-up (models/test.py).
-[test]
-test = 2.0                      # output = input * test
 
 
 # =====================================================================
@@ -113,7 +108,7 @@ n_directions = 11               # number of direction bins
 direction_limit_deg = 90.0      # use directions within +- this angle of the mean [deg]
 
 # How the spectrum is split into n_frequencies x n_directions components.
-# The Waves FMU sends out the N_WAVES (models/waves.py) with the most energy.
+# The Waves FMU sends out the N_WAVES (waves/waves.py) with the most energy.
 [waves.discretization]
 n_frequencies = 30              # number of frequency bins
 omega_min_factor = 0.25         # lowest frequency  = factor * peak frequency
@@ -159,20 +154,20 @@ damping_matrix = [
     [0.0,   0.0,   9.0e7],
 ]
 
-# Vessel FMU (models/vessel.py): 6-DOF LF + WF hull. The JSON file holds the
+# Vessel FMU (hull/vessel.py): 6-DOF LF + WF hull. The JSON file holds the
 # 6x6 matrices and hydrodynamic tables; the path is relative to this file.
 # SYNTHETIC test data for now, not RV Gunnerus.
 
 
 # Gunnerus .mat hydrodynamics; shared wind/thruster geometry still needs calibration.
 [vessel_fmu]
-mat_file = "../vessel_data/GunnerusL35_20201112.mat"
+mat_file = "../data_examples/GunnerusL35_20201112.mat"
 
 # Frequency count, heading step and spacing default to Wamit.py settings.
 lf_reference_omega_rad_s = 0.2094395
 use_mat_viscous_damping = true
 
-# Select Newman or Sorensen at the top of vessel_cosim/WaveLoads.py.
+# Select Newman or Sorensen at the top of hull/helpfunctions/WaveLoads.py.
 # The selected LF frequency is a fixed-coefficient approximation, not omega=0.
 
 
@@ -203,7 +198,7 @@ tender                         = { cd_t = 0.85, cd_lAF_bow = 0.55, cd_lAF_stern 
 #  CONTROL AND OBSERVER
 # =====================================================================
 
-# DP controller (models/dp_controller.py): a PID that holds the vessel at
+# DP controller (controller/dp_controller.py): a PID that holds the vessel at
 # the set-point. Gains from the diagonals of M and D in [vessel], one value
 # per DOF [surge, sway, yaw]:
 #   Kp = M wn^2,   Kd = 2 zeta wn M - D,   Ki = Kp wn / 10
@@ -215,7 +210,7 @@ natural_frequency = [0.05, 0.05, 0.05]          # wn [rad/s]; higher = faster. 0
 damping_ratio = [0.9, 0.9, 0.9]                 # zeta [-]; 1 = critically damped, lower = more overshoot
 integral_force_limit = [3.0e5, 3.0e5, 1.0e7]    # anti-windup: max from the integral term [N, N, Nm]
 
-# Extended Kalman filter (models/kalman_filter.py), LF + WF. All matrices diagonal.
+# Extended Kalman filter (observer/ekf/ekf.py), LF + WF. All matrices diagonal.
 #   State order:       [north, east, psi, u, v, r, b_x, b_y, b_n, xi_1 (3), xi_2 (3)]
 #   Measurement order: [north, east, psi], the total LF + WF motion
 # process_noise and initial_covariance below cover the first 9 (LF and bias)
@@ -238,7 +233,7 @@ wave_motion_std = [0.5, 0.5, 0.01]              # expected std of the WF motion 
 #  THRUSTERS AND POWER
 # =====================================================================
 # Body frame, positions from the body origin (here Lpp/2). Power in kW.
-# Every key is explained in thruster_cosim/layout.py and docs/thruster_fmus.md.
+# Every key is explained in thruster/helpfunctions/layout.py and docs/thruster_fmus.md.
 
 [allocation]
 flushing_sectors = true         # add the DNV-ST-0111 [3.11.3] flushing sectors (needs diameter)

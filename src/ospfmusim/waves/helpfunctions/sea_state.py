@@ -15,7 +15,7 @@ environment block can change it without building a new sea.
 
 The waves block sends out a fixed number of components (n_waves): the ones
 with the most energy (keep_strongest). This is what sea_from_settings()
-does, and both the FMU (models/waves.py) and the tests use that function.
+does, and both the FMU (waves/waves.py) and the tests use that function.
 
 References:
 - Sørensen, Marine Control Systems, section 6.2.1 (eq. 6.1, 6.6, 6.22)
@@ -173,7 +173,7 @@ def sea_from_settings(hs, tp, p, n_waves):
     """Build the sea exactly as the Waves FMU does.
 
     p is the settings from settings.load_settings() ([waves] in config.toml).
-    n_waves is the number of components sent out (N_WAVES in models/waves.py).
+    n_waves is the number of components sent out (N_WAVES in waves/waves.py).
     p["sea_type"] decides what kind of sea:
       "regular":   one regular wave with height H = hs and period T = tp
                    (regular_wave()). kept_energy_fraction is 1.

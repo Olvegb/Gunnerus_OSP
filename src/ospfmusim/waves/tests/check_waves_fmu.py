@@ -1,25 +1,21 @@
 """Check the Waves FMU code WITHOUT building an FMU and without OSP.
-Run from the repo folder:  python tests/waves/check_waves_fmu.py
+Run from the repo folder:  python src/ospfmusim/waves/tests/check_waves_fmu.py
 
-It creates the Waves class from models/waves.py directly in Python and calls it
+It creates the Waves class from waves/waves.py directly in Python and calls it
 the same way OSP would: set config_path and the inputs -> exit_initialization_mode()
 -> do_step() again and again. This works on any computer, also on Mac.
 """
 import re
-import sys
 import tempfile
 import tomllib
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[2]       # the repo folder
-sys.path.insert(0, str(ROOT))                    # so wave_cosim/ and models/ can be imported
-
 import numpy as np
 
-from Gunnerus_OSP_sim.src.app.build.data import default_config  # noqa: E402
-from models.waves import COMPONENT_OUTPUTS, N_WAVES, SLOTS, Waves
-from wave_cosim.sea_state import directions_to, sea_from_settings
-from wave_cosim.settings import load_settings
+from app.build.data import default_config
+from ospfmusim.waves.helpfunctions.sea_state import directions_to, sea_from_settings
+from ospfmusim.waves.helpfunctions.settings import load_settings
+from ospfmusim.waves.waves import COMPONENT_OUTPUTS, N_WAVES, SLOTS, Waves
 
 CONFIG = default_config()                        # the config the simulation uses (OspSystemStructure.xml)
 WAVES = tomllib.loads(CONFIG.read_text(encoding="utf-8-sig"))["waves"]   # H_s, T_p and direction, as Environment sends them
@@ -69,7 +65,7 @@ print(f"  wave1 (strongest): amplitude = {amplitude[0]:.3f} m,  omega = {omega[0
       f"phase = {phase[0]:.3f} rad,  direction = {direction[0]:.1f} deg")
 print(f"  kept_energy_fraction = {fmu.kept_energy_fraction:.3f}")
 
-print("COMPARE WITH wave_cosim CALLED DIRECTLY:")
+print("COMPARE WITH helpfunctions CALLED DIRECTLY:")
 sea, kept = sea_from_settings(WAVES["hs"], WAVES["tp"], load_settings(CONFIG), N_WAVES)
 same = (np.allclose(amplitude, sea.amplitudes) and np.allclose(omega, sea.frequencies)
         and np.allclose(phase, sea.phases)

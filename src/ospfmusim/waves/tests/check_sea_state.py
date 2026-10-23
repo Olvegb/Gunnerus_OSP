@@ -1,13 +1,9 @@
-"""Quick check of sea_state.py. Run from the repo folder:  python tests/waves/check_sea_state.py"""
-import sys
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))   # the repo folder, so wave_cosim/ can be imported
-
+"""Quick check of sea_state.py. Run from the repo folder:  python src/ospfmusim/waves/tests/check_sea_state.py"""
 import numpy as np
 
-from wave_cosim.sea_state import directions_to, elevation, keep_strongest, realize, sea_from_settings
-from wave_cosim.spectra import cos2s
+from ospfmusim.waves.helpfunctions.sea_state import (directions_to, elevation, keep_strongest,
+                                                     realize, sea_from_settings)
+from ospfmusim.waves.helpfunctions.spectra import cos2s
 
 hs = 3.0     # significant wave height [m]
 tp = 9.0     # peak period [s]
