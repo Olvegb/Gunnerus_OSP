@@ -6,7 +6,7 @@ A very simple 3-DOF vessel, only for this check (not the hull model):
     eta_dot = R(psi) nu
     M nu_dot + D nu = tau + R(psi)^T b
 
-M and D from [vessel] in config.toml, b a constant force in NED (current, wave
+M and D from [vessel] in the config the simulation uses, b a constant force in NED (current, wave
 drift, wind). The controller gets the true position and velocity (no Kalman
 filter) and the thrusters give exactly the commanded force.
 
@@ -22,9 +22,10 @@ sys.path.insert(0, str(ROOT))                    # so models/ can be imported
 
 import numpy as np
 
+from app.data import default_config  # noqa: E402
 from models.dp_controller import DPController, rotation, total_tau
 
-CONFIG = ROOT / "config.toml"
+CONFIG = default_config()                        # the config the simulation uses (OspSystemStructure.xml)
 DT = 0.1                                         # time step [s], as in OspSystemStructure.xml
 DURATION = 30 * 60.0                             # 30 minutes
 

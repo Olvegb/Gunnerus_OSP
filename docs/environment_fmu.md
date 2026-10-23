@@ -9,7 +9,7 @@ and loads itself. Owner: Olve.
                     ┌──mean, slowly varying, gust wind speed, wind_direction_deg──► VesselBlock
 [wind], [waves],    │
 [current] in  ──► Environment ──current_north, current_east──────────────────────► VesselBlock
-config.toml         │
+configs/*.toml      │
                     └──H_s, T_p, wave_direction_deg──► Waves ──wave<k>_*──► VesselBlock
 ```
 
@@ -19,7 +19,7 @@ config.toml         │
 
 | Name | Description |
 |---|---|
-| `config_path` | Path to `config.toml`, set in `OspSystemStructure.xml` |
+| `config_path` | Path to `configs/*.toml`, set in `OspSystemStructure.xml` |
 
 **Inputs:** none.
 
@@ -88,7 +88,7 @@ slowly varying band (about 1/(2πT) Hz), or use only one of the two parts.
 
 Both are constant and passed straight on from the config file. The Waves FMU turns the sea state into
 wave components (see [waves_fmu.md](waves_fmu.md)). The current is given as speed and direction in
-`config.toml` and sent out both that way and as NED components:
+`configs/*.toml` and sent out both that way and as NED components:
 
 ```
 current_north = V_c cos(β_c),    current_east = V_c sin(β_c)
@@ -96,7 +96,7 @@ current_north = V_c cos(β_c),    current_east = V_c sin(β_c)
 
 ### Switching parts off
 
-Set the part to 0 in `config.toml`. No rebuild is needed:
+Set the part to 0 in `configs/*.toml`. No rebuild is needed:
 
 | Part | Set |
 |---|---|
@@ -110,7 +110,7 @@ Set the part to 0 in `config.toml`. No rebuild is needed:
 `[wind] seed` seeds all wind randomness (V_sv, gust frequencies and phases, β_sv). Same seed = the same
 wind every run. The waves have their own `seed` in `[waves]`.
 
-## 3. `config.toml`
+## 3. `configs/*.toml`
 
 | Key | Description |
 |---|---|
@@ -126,7 +126,7 @@ wind every run. The waves have their own `seed` in `[waves]`.
 | `[waves] hs`, `tp`, `direction_deg` | Sea state, sent on to the Waves FMU |
 | `[current] speed`, `direction_deg` | Current speed [m/s] and where it flows to [deg] |
 
-**Changing `config.toml` needs no rebuild.**
+**Changing `configs/*.toml` needs no rebuild.**
 
 ## 4. Files
 

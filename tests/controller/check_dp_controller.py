@@ -14,14 +14,15 @@ sys.path.insert(0, str(ROOT))                    # so models/ can be imported
 
 import numpy as np
 
+from app.data import default_config  # noqa: E402
 from models.dp_controller import OUTPUTS, DPController, total_tau
 
-CONFIG = ROOT / "config.toml"
+CONFIG = default_config()                        # the config the simulation uses (OspSystemStructure.xml)
 DT = 0.1                                         # time step [s], as in OspSystemStructure.xml
 
 
 def controller():
-    """A started controller with the set-point from config.toml (north 0, east 0, heading 0)."""
+    """A started controller with the config the simulation uses. The checks assume set-point north 0, east 0, heading 0."""
     fmu = DPController(instance_name="dp_controller")
     fmu.config_path = str(CONFIG)
     fmu.exit_initialization_mode()

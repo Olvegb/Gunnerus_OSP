@@ -3,6 +3,7 @@
 The explicit zero-viscous-damping choice below is ONLY a code-path smoke test,
 not a physically calibrated tanker model.
 """
+import re
 import sys
 import tempfile
 import unittest
@@ -16,6 +17,7 @@ sys.path.insert(0, str(ROOT))
 
 from vessel_cosim.Wamit import load_mat_vessel, FREQUENCY_COUNT, HEADING_STEP_DEG, FREQUENCY_SPACING
 from vessel_cosim.WaveLoads import ResponseTable, selected_drift_method
+from app.data import default_config
 
 MAT = ROOT / "vessel_cosim/data/tanker.mat"
 
@@ -72,7 +74,7 @@ class TestMatLoader(unittest.TestCase):
 
     def test_fmu_can_initialize_from_mat_with_explicit_test_settings(self):
         from models.vessel import VesselBlock
-        shared = (ROOT / "config.toml").read_text()
+        shared = default_config().read_text(encoding="utf-8-sig")
         self.assertIn("[vessel_fmu]", shared)
         test_block = (
             f'mat_file = "{MAT}"\n'
@@ -84,7 +86,8 @@ class TestMatLoader(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             p = Path(temp) / "config.toml"
             # Override only the active vessel_fmu block for this tanker smoke test.
-            p.write_text(shared.split("[vessel_fmu]")[0] + "[vessel_fmu]\n" + test_block + "\n")
+            p.write_text(re.sub(r"^\[vessel_fmu\]\n.*?(?=^\[)", lambda _: "[vessel_fmu]\n" + test_block + "\n\n",
+                                shared, count=1, flags=re.MULTILINE | re.DOTALL))
             fm = VesselBlock(instance_name="mat_tanker_smoke")
             fm.config_path = str(p)
             fm.setup_experiment(0)
@@ -100,13 +103,16 @@ class TestMatLoader(unittest.TestCase):
     def test_active_gunnerus_lf_receives_exact_loader_matrices(self):
         import tomllib
         from models.vessel import VesselBlock
-        config = ROOT / "config.toml"
+        config = default_config()                # the config the simulation uses
         with config.open("rb") as stream:
             s = tomllib.load(stream)["vessel_fmu"]
-        self.assertEqual(s["mat_file"], "vessel_cosim/data/GunnerusL35_20201112.mat")
+        if "mat_file" not in s:
+            self.skipTest(f"{config.name} uses no .mat file")
+        mat_file = (config.parent / s["mat_file"]).resolve()     # relative to the config file
+        self.assertTrue(mat_file.is_file(), mat_file)
         self.assertTrue(s["use_mat_viscous_damping"])
         expected = load_mat_vessel(
-            ROOT / s["mat_file"],
+            mat_file,
             frequency_count=s.get("frequency_count", FREQUENCY_COUNT),
             heading_step_deg=s.get("heading_step_deg", HEADING_STEP_DEG),
             frequency_spacing=s.get("frequency_spacing", FREQUENCY_SPACING),

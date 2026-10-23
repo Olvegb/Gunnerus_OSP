@@ -28,22 +28,24 @@ FMU to it, so `OspSystemStructure.xml` is not changed. Relative file paths in th
 
 ## New run tab
 
-1. **Start from:** `config.toml`, or the config of an earlier run (to repeat or vary it).
-2. **Edit the values.** One input per value, grouped as in `config.toml`: simulation, wind, waves,
+1. **Start from:** a config file in `configs/` (the default is the one `OspSystemStructure.xml` points to),
+   or the config of an earlier run (to repeat or vary it).
+2. **Edit the values.** One input per value, grouped as in the config file: simulation, wind, waves,
    current, vessel, DP controller, Kalman filter and thrust allocation. Hover the ⓘ to see the comment
-   from `config.toml`. Lists with up to three numbers get one input per number; longer lists are
+   from the config file. Lists with up to three numbers get one input per number; longer lists are
    comma-separated.
 3. **Run name** (optional) is added to the folder name.
 4. **Run simulation.** The app writes a copy of the config with your changes, runs
    `run_simulation.py` with it, and selects the new run in the sidebar. The output of the script is
    shown at the top of the tab.
 
-**Save as default in config.toml** writes the values in the form into `config.toml` itself, keeping
+**Save as default** writes the values in the form into the file chosen in **Save as default in** (a file in
+`configs/`), keeping
 the comments. Only the changed lines are touched.
 
 Not editable in the app: the multi-line vessel matrices (`mass_matrix`, `damping_matrix`), the
 `[blendermann]` table, the `[[power_sources]]` and `[[thrusters]]` layout, and file paths. Edit those
-in `config.toml`.
+in the config file in `configs/`.
 
 ## Result tabs
 
@@ -89,6 +91,6 @@ Angles are shown in degrees, also where the FMU uses radians (vessel `yaw`, filt
 - A run blocks the app until it is done. Long runs (several minutes of simulated time) take a while.
 - Runs are not compared side by side yet; open two browser tabs and pick a run in each.
 - Runs from before run folders (loose files in `results/`) have no config copy, so their summary uses
-  `config.toml` as it is now.
+  the default config in `configs/` as it is now.
 - Old run folders are never deleted by the app. Delete them in the file explorer when they are not
   needed.

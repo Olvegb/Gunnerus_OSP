@@ -1,6 +1,9 @@
-"""Reads the simulation results and config.toml for the results app.
+"""Reads the simulation results and the config files for the results app.
 
 Plain Python and pandas, no Streamlit, so it can be used and checked on its own.
+
+The config files are in configs/, one .toml file per set-up. The default one is
+the file OspSystemStructure.xml points config_path to.
 
 run_simulation.py puts every run in its own folder, results/<YYYYMMDD_HHMMSS>[_name]/,
 with a copy of the config it was run with (config.toml). libcosim writes one
@@ -9,6 +12,7 @@ where <simulator> is the name in OspSystemStructure.xml (environment, vessel, ..
 """
 import re
 import tomllib
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
 import numpy as np
@@ -16,7 +20,8 @@ import pandas as pd
 
 ROOT = Path(__file__).resolve().parents[1]       # the repo folder
 RESULTS = ROOT / "results"
-CONFIG = ROOT / "config.toml"
+CONFIGS = ROOT / "configs"
+SYSTEM = ROOT / "OspSystemStructure.xml"
 
 CSV_NAME = re.compile(r"^(?P<simulator>.+)_\d{8}_\d{6}_\d+\.csv$")
 WAVE_COLUMN = re.compile(r"^wave\d+_")
@@ -67,7 +72,29 @@ def run_config_path(folder):
     return path if path.is_file() else None
 
 
-def load_config(path=CONFIG):
+def list_configs(configs=CONFIGS):
+    """[config files] in configs/, sorted by name."""
+    return sorted(Path(configs).glob("*.toml"))
+
+
+def default_config(system=SYSTEM):
+    """The config file OspSystemStructure.xml points config_path to.
+
+    The path in the XML is relative to the repo folder, where the simulation is
+    started. Falls back to the first file in configs/ if the XML has none.
+    """
+    for element in ET.parse(system).getroot().iter():
+        if element.tag.endswith("InitialValue") and element.get("variable") == "config_path":
+            for value in element:
+                if value.tag.endswith("String") and value.get("value"):
+                    return (ROOT / value.get("value")).resolve()
+    configs = list_configs()
+    if not configs:
+        raise FileNotFoundError(f"No config file (*.toml) in {CONFIGS}")
+    return configs[0]
+
+
+def load_config(path):
     return tomllib.loads(Path(path).read_text(encoding="utf-8-sig"))
 
 

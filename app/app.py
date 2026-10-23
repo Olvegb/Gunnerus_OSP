@@ -100,7 +100,7 @@ elif folder is not None:
     st.sidebar.error(f"The folder {folder} does not exist.")
 
 config_path = data.run_config_path(folder) if folder is not None else None
-config = data.load_config(config_path or data.CONFIG)
+config = data.load_config(config_path or data.default_config())
 if results:
     end_time = float(max(df.index[-1] for df in results.values() if len(df)))
     start, stop = st.sidebar.slider("Time window [s]", 0.0, end_time, (0.0, end_time),
@@ -108,8 +108,8 @@ if results:
     results = {name: df.loc[start:stop] for name, df in results.items()}
     st.sidebar.caption("Files: " + ", ".join(sorted(results)))
     st.sidebar.caption("Config: the run's own copy." if config_path else
-                       "Config: config.toml now (this run has no copy), which may differ from the "
-                       "config the results were made with.")
+                       f"Config: configs/{data.default_config().name} now (this run has no copy), which "
+                       "may differ from the config the results were made with.")
 
 R = results.get                                 # short name: R("vessel") -> DataFrame or None
 

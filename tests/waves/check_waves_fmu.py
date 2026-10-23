@@ -16,11 +16,12 @@ sys.path.insert(0, str(ROOT))                    # so wave_cosim/ and models/ ca
 
 import numpy as np
 
+from app.data import default_config  # noqa: E402
 from models.waves import COMPONENT_OUTPUTS, N_WAVES, SLOTS, Waves
 from wave_cosim.sea_state import directions_to, sea_from_settings
 from wave_cosim.settings import load_settings
 
-CONFIG = ROOT / "config.toml"
+CONFIG = default_config()                        # the config the simulation uses (OspSystemStructure.xml)
 WAVES = tomllib.loads(CONFIG.read_text(encoding="utf-8-sig"))["waves"]   # H_s, T_p and direction, as Environment sends them
 DT = 0.1                                                                 # time step [s], as in OspSystemStructure.xml
 
@@ -39,11 +40,11 @@ def read_outputs(fmu):
 
 
 def config_with(**changes):
-    """A copy of config.toml with some [waves] values changed, in a temporary file."""
+    """A copy of the config the simulation uses with some [waves] values changed, in a temporary file."""
     text = CONFIG.read_text(encoding="utf-8-sig")
     for key, value in changes.items():
         text, n = re.subn(rf'^{key} = "[^"]*"', f'{key} = "{value}"', text, count=1, flags=re.MULTILINE)
-        assert n == 1, f"{key} not found in config.toml"
+        assert n == 1, f"{key} not found in {CONFIG}"
     file = Path(tempfile.mkdtemp()) / "config.toml"
     file.write_text(text, encoding="utf-8")
     return file

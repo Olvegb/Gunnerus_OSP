@@ -10,7 +10,7 @@ VesselBlock ──north, east, yaw (LF + WF)──► ExtendedKalmanFilter ─�
 VesselBlock ──wind_X, wind_Y, wind_N──────►          │
 ThrusterDynamics ──X, Y, N────────────────►          ├──b_x_hat, b_y_hat, b_n_hat──► logging
                                                      └──wf_north_hat, wf_east_hat, wf_psi_hat──► logging
-                     [vessel], [waves] tp and [kalman_filter] in config.toml
+                     [vessel], [waves] tp and [kalman_filter] in configs/*.toml
 ```
 
 The point of the WF states: the measurements contain the total motion, but the controller should only
@@ -23,7 +23,7 @@ estimates and make the thrusters chase every wave.
 
 | Name | Description |
 |---|---|
-| `config_path` | Path to `config.toml`, set in `OspSystemStructure.xml` |
+| `config_path` | Path to `configs/*.toml`, set in `OspSystemStructure.xml` |
 
 **Inputs**
 
@@ -113,7 +113,7 @@ y = η + η_w = H x,    H = [I₃ 0 0 0 I₃]
 **Heading wrap.** ψ and the heading innovation are wrapped to [−π, π), so 359° against 1° is a 2° error,
 not 358°.
 
-## 3. `config.toml`
+## 3. `configs/*.toml`
 
 | Key in `[kalman_filter]` | Description |
 |---|---|
@@ -125,7 +125,7 @@ not 358°.
 | `wave_motion_std` | Expected std of the WF motion σ for [north, east, yaw] [m, m, rad] |
 
 Plus `mass_matrix` and `damping_matrix` in `[vessel]`, and `tp` in `[waves]`.
-**Changing `config.toml` needs no rebuild.**
+**Changing `configs/*.toml` needs no rebuild.**
 
 **Tuning in short.**
 - The bias process noise (the last three entries of `process_noise`) sets how fast the bias follows a

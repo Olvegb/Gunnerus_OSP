@@ -6,7 +6,7 @@ set-point. It is a **simple PID**, there to close the loop so the whole simulato
 ```
 kalman_filter ──north_hat, east_hat, psi_hat, u_hat, v_hat, r_hat──► DPController ──tau_X_P ... tau_N_D──► ThrustAllocation
                                                                          │
-                                                       [controller] and [vessel] in config.toml
+                                                       [controller] and [vessel] in configs/*.toml
 ```
 
 ## 1. Inputs, outputs, parameter
@@ -15,7 +15,7 @@ kalman_filter ──north_hat, east_hat, psi_hat, u_hat, v_hat, r_hat──► D
 
 | Name | Description |
 |---|---|
-| `config_path` | Path to `config.toml`, set in `OspSystemStructure.xml` |
+| `config_path` | Path to `configs/*.toml`, set in `OspSystemStructure.xml` |
 
 **Inputs** (from the ExtendedKalmanFilter FMU)
 
@@ -74,7 +74,7 @@ placeholder OSV matrices, ωₙ = 0.05 rad/s and ζ = 0.9:
 | Ki | 82.5 N/(m s) | 112.5 N/(m s) | 5.63e4 Nm/(rad s) |
 | Kd | 5.28e5 N s/m | 6.30e5 N s/m | 3.15e8 Nm s/rad |
 
-## 3. `config.toml`
+## 3. `configs/*.toml`
 
 | Key in `[controller]` | Description |
 |---|---|
@@ -85,7 +85,7 @@ placeholder OSV matrices, ωₙ = 0.05 rad/s and ζ = 0.9:
 | `integral_force_limit` | Largest force from the I term [N, N, Nm] (anti-windup) |
 
 Plus `mass_matrix` and `damping_matrix` in `[vessel]`, shared with the Kalman filter and the hull FMU.
-**Changing `config.toml` needs no rebuild.**
+**Changing `configs/*.toml` needs no rebuild.**
 
 ## 4. Files
 

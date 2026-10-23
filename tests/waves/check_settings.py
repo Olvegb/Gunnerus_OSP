@@ -1,6 +1,6 @@
 """Quick check of wave_cosim/settings.py. Run from the repo folder:  python tests/waves/check_settings.py
 
-Reads [waves] from config.toml and builds the sea ONLY from that, the same way the Waves FMU does it.
+Reads [waves] from the config the simulation uses and builds the sea ONLY from that, the same way the Waves FMU does it.
 """
 import sys
 import tomllib
@@ -11,15 +11,16 @@ sys.path.insert(0, str(ROOT))                    # so wave_cosim/ and models/ ca
 
 import numpy as np
 
+from app.data import default_config  # noqa: E402
 from models.waves import N_WAVES
 from wave_cosim.sea_state import sea_from_settings
 from wave_cosim.settings import load_settings, settings_from_config
 
-CONFIG = ROOT / "config.toml"
+CONFIG = default_config()                        # the config the simulation uses (OspSystemStructure.xml)
 waves = tomllib.loads(CONFIG.read_text(encoding="utf-8-sig"))["waves"]
 settings = load_settings(CONFIG)
 
-print("SETTINGS FROM config.toml:")
+print(f"SETTINGS FROM configs/{CONFIG.name}:")
 for name, value in settings.items():
     print(f"  {name:20s} = {value}")
 
