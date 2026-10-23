@@ -217,6 +217,16 @@ with tabs[2]:
                             ("Yaw [deg]", deg(vessel["wf_yaw"]))], "Wave-frequency (WF) motion", ""))
         show(line_plot([("u", vessel["lf_u"]), ("v", vessel["lf_v"])], "LF velocity, body frame", "[m/s]"))
 
+        st.subheader("Heave, roll and pitch")
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            # down is positive downwards (NED), so heave up is negative.
+            show(line_plot([("Total", vessel["down"]), ("LF", vessel["lf_down"])], "Heave (down)", "[m]"))
+        with c2:
+            show(line_plot([("Total", deg(vessel["roll"])), ("LF", deg(vessel["lf_roll"]))], "Roll", "[deg]"))
+        with c3:
+            show(line_plot([("Total", deg(vessel["pitch"])), ("LF", deg(vessel["lf_pitch"]))], "Pitch", "[deg]"))
+
         st.subheader("Loads on the vessel, body frame")
         dynamics = R("dynamics")
         c1, c2, c3 = st.columns(3)
