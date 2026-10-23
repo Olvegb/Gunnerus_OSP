@@ -6,13 +6,13 @@ from the Environment FMU into a set of regular wave components for the hull FMU.
 ```
 Environment ──H_s, T_p, wave_direction_deg──► Waves ──wave<k>_amplitude, _omega, _phase, _direction_deg──► hull FMU
                                                 │                   k = 1 ... N_WAVES (= 100)
-                                     [waves] in config.toml
+                                     [waves] in configs/*.toml
 ```
 
 The FMU only describes the **sea**. It does **not** calculate any forces: the wave loads depend on
 the vessel, so the hull FMU calculates them from the wave components.
 
-Three kinds of sea, chosen in `config.toml` without rebuilding the FMU:
+Three kinds of sea, chosen in `configs/*.toml` without rebuilding the FMU:
 
 | Sea | `[waves] sea_type` | `[waves.spreading] type` | What is sent out |
 |---|---|---|---|
@@ -31,7 +31,7 @@ Based on the TMR4240 / `mcsimpy` wave model, extended with directional spreading
 
 | Name | Description |
 |---|---|
-| `config_path` | Path to `config.toml`, set in `OspSystemStructure.xml`. The FMU reads `[waves]` itself in `exit_initialization_mode()` |
+| `config_path` | Path to `configs/*.toml`, set in `OspSystemStructure.xml`. The FMU reads `[waves]` itself in `exit_initialization_mode()` |
 
 **Inputs** (connected from the Environment FMU)
 
@@ -72,7 +72,7 @@ time; the time dependence is in `omega_k * t` above.
 The direction relative to the vessel (for the RAO and drift tables) is `theta_k - psi`, with
 `psi` the heading.
 
-## 3. `config.toml`
+## 3. `configs/*.toml`
 
 Everything is in `[waves]` and its sub-sections:
 
@@ -88,13 +88,13 @@ Everything is in `[waves]` and its sub-sections:
 Only `[waves.spectrum]`, `[waves.spreading]` and `[waves.discretization]` are used for an irregular
 sea. A wrong name (for example `type = "cos-2s"`) stops the simulation at the start with a message.
 
-**Changing `config.toml` needs no rebuild.**
+**Changing `configs/*.toml` needs no rebuild.**
 
 ## 4. `N_WAVES` is special
 
 An FMU has a fixed number of outputs, decided when it is **built**. So `N_WAVES` is a constant at
 the top of `models/waves.py` (the same idea as `MAX_THRUSTERS` in `thrust_allocation.py`), not in
-`config.toml`. After changing it:
+`configs/*.toml`. After changing it:
 
 1. run `python build_fmus.py`,
 2. redo the connections to the hull FMU in `OspSystemStructure.xml` (4 per wave component).
@@ -124,7 +124,7 @@ the energy is kept (0.93 with the current config).
 | `models/waves.py` | The FMU: inputs, outputs, `config_path`, `do_step`. `N_WAVES` is set here |
 | `wave_cosim/spectra.py` | Wave spectra (Pierson–Moskowitz, JONSWAP) and the cos-2s spreading function |
 | `wave_cosim/sea_state.py` | Regular wave, or splits the spectrum into wave components and keeps the strongest. Adds the mean direction |
-| `wave_cosim/settings.py` | Reads `[waves]` from `config.toml` and checks the names |
+| `wave_cosim/settings.py` | Reads `[waves]` from `configs/*.toml` and checks the names |
 | `tests/waves/check_*.py` | Check scripts, see below |
 
 `build_fmus.py` builds `wave_cosim/` into the FMU's `resources/`, the same way as `thruster_cosim/`.
@@ -136,7 +136,7 @@ Run from the repo folder. All of these work on Mac (they do not need OSP).
 ```
 python tests/waves/check_spectra.py     # H_s from the spectrum area, peak position
 python tests/waves/check_sea_state.py   # H_s, spreading, repetition, strongest components, directions, sea types
-python tests/waves/check_settings.py    # [waves] in config.toml builds the sea, wrong names are caught
+python tests/waves/check_settings.py    # [waves] in configs/*.toml builds the sea, wrong names are caught
 python tests/waves/check_waves_fmu.py   # the FMU class: outputs, new direction, calm sea, regular sea, errors
 ```
 

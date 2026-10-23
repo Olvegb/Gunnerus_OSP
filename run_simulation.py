@@ -2,9 +2,12 @@
 
 Run with (with the conda environment master activated):
 
-    python run_simulation.py                              # config.toml, results/<time stamp>/
+    python run_simulation.py                              # default config, results/<time stamp>/
     python run_simulation.py --name high_wind             # results/<time stamp>_high_wind/
-    python run_simulation.py --config other.toml          # another config file
+    python run_simulation.py --config configs/other.toml  # another config file
+
+The default config is the file in configs/ that OspSystemStructure.xml points
+config_path to.
     python run_simulation.py --output results/my_run      # a chosen folder
 
 Every run gets its own folder with one CSV per FMU and a copy of the config it
@@ -23,6 +26,7 @@ from libcosimpy.CosimLogging import CosimLogLevel, log_output_level
 from libcosimpy.CosimObserver import CosimObserver
 
 from app.config_tools import make_paths_absolute
+from app.data import default_config
 
 ROOT = Path(__file__).resolve().parent
 RESULTS = ROOT / "results"
@@ -76,15 +80,16 @@ def print_summary(run_dir, config):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--config", default=None, help="config file (default: config.toml in this folder)")
+    parser.add_argument("--config", default=None,
+                        help="config file (default: the one OspSystemStructure.xml points to)")
     parser.add_argument("--name", default="", help="short name added to the run folder")
     parser.add_argument("--output", default=None, help="run folder (default: results/<time stamp>[_name])")
     args = parser.parse_args(argv)
 
     # 1. Change to this folder, so the relative paths in OspSystemStructure.xml
     #    (fmus/...) work wherever the script is started from.
-    # The default config is the one next to this script; a given path is relative to where you stand.
-    source = Path(args.config).resolve() if args.config else ROOT / "config.toml"
+    # The default config is the one in OspSystemStructure.xml; a given path is relative to where you stand.
+    source = Path(args.config).resolve() if args.config else default_config()
     if not source.is_file():
         raise SystemExit(f"Config file not found: {source}")
     os.chdir(ROOT)

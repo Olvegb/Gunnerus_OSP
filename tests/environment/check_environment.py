@@ -1,7 +1,7 @@
 """Check the Environment FMU code WITHOUT building an FMU and without OSP.
 Run from the repo folder:  python tests/environment/check_environment.py
 
-Creates the Environment class from models/environment.py with config.toml,
+Creates the Environment class from models/environment.py with the config the simulation uses,
 or with a copy of it where some values are changed, and checks:
 
   1. Everything switched off: the outputs are constant and equal to the config.
@@ -25,15 +25,16 @@ sys.path.insert(0, str(ROOT))                    # so models/ can be imported
 
 import numpy as np
 
+from app.data import default_config  # noqa: E402
 from models.environment import Environment, GaussMarkov, norsok_wind_spectrum
 
-CONFIG = ROOT / "config.toml"
+CONFIG = default_config()                        # the config the simulation uses (OspSystemStructure.xml)
 DT = 0.1                                         # time step [s], as in OspSystemStructure.xml
 TMP = Path(tempfile.mkdtemp())
 
 
 def config_with(changes):
-    """A copy of config.toml with some values changed: {("section", "key"): "new value"}."""
+    """A copy of the config the simulation uses with some values changed: {("section", "key"): "new value"}."""
     lines, section, done = [], None, set()
     for line in CONFIG.read_text(encoding="utf-8").splitlines():
         stripped = line.strip()
@@ -45,14 +46,14 @@ def config_with(changes):
             done.add((section, key))
         lines.append(line)
     missing = set(changes) - done
-    assert not missing, f"not found in config.toml: {missing}"
+    assert not missing, f"not found in {CONFIG}: {missing}"
     path = TMP / f"config_{len(list(TMP.iterdir()))}.toml"
     path.write_text("\n".join(lines), encoding="utf-8")
     return path
 
 
 def environment(changes=None):
-    """A started Environment FMU, with config.toml or a changed copy of it."""
+    """A started Environment FMU, with the config the simulation uses or a changed copy of it."""
     fmu = Environment(instance_name="environment")
     fmu.config_path = str(config_with(changes) if changes else CONFIG)
     fmu.exit_initialization_mode()

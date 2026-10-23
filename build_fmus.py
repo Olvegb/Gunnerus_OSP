@@ -1,7 +1,7 @@
 """Builds every model in models/ into an FMU in fmus/.
 
 Run again only when a .py file in models/ changes.
-Changes to config.toml do NOT need a rebuild.
+Changes to the config files in configs/ do NOT need a rebuild.
 
 Does the same as running this for each model:
     pythonfmu build -f models/vessel.py thruster_cosim wave_cosim vessel_cosim -d fmus

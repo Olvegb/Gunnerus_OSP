@@ -1,6 +1,6 @@
 """Execute the real FMU and compare with independent calls to the four modules."""
 from pathlib import Path
-import json, sys, tempfile, tomllib
+import json, re, sys, tempfile, tomllib
 import numpy as np
 from fmpy import extract, read_model_description
 from fmpy.fmi2 import FMU2Slave
@@ -12,6 +12,7 @@ from vessel_cosim.WF import WF
 from vessel_cosim.WindModel import WindLoads
 from vessel_cosim.WaveLoads import WaveLoads,WaveComponents
 from models.vessel import read_table,POSE,VELOCITY
+from app.data import default_config
 
 def main():
     file=ROOT/'fmus/VesselBlock.fmu'
@@ -19,9 +20,13 @@ def main():
     md=read_model_description(str(file),validate=True)
     refs={v.name:v.valueReference for v in md.modelVariables}
     cfg=json.loads((ROOT/'vessel_cosim/example_test_config.json').read_text())
-    with (ROOT/'config.toml').open('rb') as stream:
-        shared=tomllib.load(stream)
-    assert shared['vessel_fmu']['data_file'] == 'vessel_cosim/example_test_config.json'
+    # The config the simulation uses, with [vessel_fmu] pointing to the synthetic JSON fixture.
+    data_file=(ROOT/'vessel_cosim/example_test_config.json').as_posix()
+    text=re.sub(r'^\[vessel_fmu\]\n.*?(?=^\[)',lambda _:f'[vessel_fmu]\ndata_file = "{data_file}"\n\n',
+                default_config().read_text(encoding='utf-8-sig'),count=1,flags=re.M|re.S)
+    config=Path(tempfile.mkdtemp())/'config.toml';config.write_text(text,encoding='utf-8')
+    shared=tomllib.loads(text)
+    assert shared['vessel_fmu']=={'data_file':data_file}
     vessel=shared['vessel']
     wind_settings={k:vessel[k] for k in ('loa','area_lateral','area_frontal','s_L','s_H')}
     wind_settings.update(shared['blendermann'][vessel['type']])
@@ -41,7 +46,7 @@ def main():
         for label,inputs in cases.items():
             f=FMU2Slave(guid=md.guid,unzipDirectory=directory,modelIdentifier=md.coSimulation.modelIdentifier,instanceName=label)
             f.instantiate();f.setupExperiment(startTime=3.);f.enterInitializationMode()
-            f.setString([refs['config_path']],[str(ROOT/'config.toml')])
+            f.setString([refs['config_path']],[str(config)])
             if inputs:f.setReal([refs[n] for n in inputs],list(inputs.values()))
             f.exitInitializationMode()
             lf=LF(**{k:cfg[k] for k in ('rigid_mass','added_mass','damping','restoring')})
@@ -73,7 +78,7 @@ def main():
                 if label=='waves':assert abs(actual[2])>0 and np.linalg.norm(state[:2])>0
                 # Actual FMI reset and fresh calm initialization.
                 f.reset();f.setupExperiment(startTime=0);f.enterInitializationMode()
-                f.setString([refs['config_path']],[str(ROOT/'config.toml')]);f.exitInitializationMode()
+                f.setString([refs['config_path']],[str(config)]);f.exitInitializationMode()
                 f.doStep(currentCommunicationPoint=0,communicationStepSize=.1)
                 np.testing.assert_array_equal(f.getReal([refs[n] for n in names]),0)
             finally:f.terminate();f.freeInstance()

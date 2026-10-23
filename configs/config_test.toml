@@ -166,7 +166,7 @@ damping_matrix = [
 
 # Gunnerus .mat hydrodynamics; shared wind/thruster geometry still needs calibration.
 [vessel_fmu]
-mat_file = "vessel_data/GunnerusL35_20201112.mat"
+mat_file = "../vessel_data/GunnerusL35_20201112.mat"
 
 # Frequency count, heading step and spacing default to Wamit.py settings.
 lf_reference_omega_rad_s = 0.2094395

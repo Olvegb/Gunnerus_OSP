@@ -21,7 +21,7 @@ DP controller ──P, I, D terms of tau──► ThrustAllocation ──thrust 
 | File | What it is |
 |---|---|
 | `ThrustAllocation.fmu`, `ThrusterDynamics.fmu` | The two FMUs (win64 and linux64 binaries). Not in git: build them with `python build_fmus.py` |
-| `config.toml` | The thruster layout. Both FMUs read it themselves at start-up |
+| `configs/*.toml` | The thruster layout. Both FMUs read it themselves at start-up |
 
 - **Python must be installed.** pythonfmu FMUs do not bundle Python; they use the Python on the
   machine. That Python needs to be **3.11 with numpy and scipy** (tested with numpy 2.1.0 and
@@ -29,9 +29,9 @@ DP controller ──P, I, D terms of tau──► ThrustAllocation ──thrust 
   - Run from Python with libcosimpy (tested with 0.0.6): the Python running the script is used, so
     nothing else is needed.
   - cosim CLI or OSP-GUI: not tested. The Python 3.11 DLL must be on PATH.
-- **`config_path`** is a parameter on both FMUs. A relative path such as `config.toml` is read from
+- **`config_path`** is a parameter on both FMUs. A relative path such as `configs/config_test.toml` is read from
   the folder the simulation is started from. With OSP-GUI, use a full path.
-- **Changing `config.toml` needs no rebuild.** The FMUs read it every time the simulation starts.
+- **Changing `configs/*.toml` needs no rebuild.** The FMUs read it every time the simulation starts.
   Only a change to the Python code needs a rebuild (`python build_fmus.py`).
 
 ## 2. Frame and signs
@@ -48,7 +48,7 @@ Everything at the FMU boundary is in the **Fossen body frame**:
 Units are SI (N, Nm, m, s), with power in kW and angles in degrees. Variable names that hold an angle
 end in `_deg`.
 
-The thruster positions (x, y) in `config.toml` are measured from the vessel model's body origin.
+The thruster positions (x, y) in `configs/*.toml` are measured from the vessel model's body origin.
 **This origin must be the same one the vessel model uses for N** (still to agree, §9).
 
 `X`, `Y` and `N` from ThrusterDynamics are the thrust loads on the vessel, with the same names and
@@ -75,7 +75,7 @@ Every time step it:
 
 | | Name | Type | Unit | Meaning |
 |---|---|---|---|---|
-| parameter | `config_path` | String | – | Path to `config.toml` |
+| parameter | `config_path` | String | – | Path to `configs/*.toml` |
 | input | `tau_X_P`, `tau_X_I`, `tau_X_D` | Real | N | P, I and D term of the commanded surge force, + forward |
 | input | `tau_Y_P`, `tau_Y_I`, `tau_Y_D` | Real | N | P, I and D term of the commanded sway force, + to starboard |
 | input | `tau_N_P`, `tau_N_I`, `tau_N_D` | Real | Nm | P, I and D term of the commanded yaw moment, + bow to starboard |
@@ -110,7 +110,7 @@ The thrusters start at rest: zero thrust, azimuths pointing ahead (0°), tunnels
 
 | | Name | Type | Unit | Meaning |
 |---|---|---|---|---|
-| parameter | `config_path` | String | – | Path to `config.toml` (the same file) |
+| parameter | `config_path` | String | – | Path to `configs/*.toml` (the same file) |
 | input | `thrusterK_thrust_command` | Real | N | From ThrustAllocation |
 | input | `thrusterK_azimuth_command_deg` | Real | deg | From ThrustAllocation |
 | input | `thrusterK_available` | Boolean | – | False trips thruster K. Default true |
@@ -129,12 +129,12 @@ Simulator and variable names on the other FMUs (`dp`, `vessel`, …) are placeho
 ```xml
 <Simulator name="allocation" source="fmus/ThrustAllocation.fmu">
     <InitialValues>
-        <InitialValue variable="config_path"><String value="config.toml"/></InitialValue>
+        <InitialValue variable="config_path"><String value="configs/config_test.toml"/></InitialValue>
     </InitialValues>
 </Simulator>
 <Simulator name="dynamics" source="fmus/ThrusterDynamics.fmu">
     <InitialValues>
-        <InitialValue variable="config_path"><String value="config.toml"/></InitialValue>
+        <InitialValue variable="config_path"><String value="configs/config_test.toml"/></InitialValue>
     </InitialValues>
 </Simulator>
 ```
@@ -184,9 +184,9 @@ counting on the tripped thruster and the force falls short.
 with τ as fixed InitialValues for testing. `dynamics.X/Y/N` is not connected yet: it goes to an FMU
 another stakeholder is working on.
 
-## 6. `config.toml`
+## 6. `configs/*.toml`
 
-The FMUs read three sections and ignore every other one, so one `config.toml` can be shared with the
+The FMUs read three sections and ignore every other one, so one config file can be shared with the
 other FMUs (Olve's `[wind]`, `[vessel]`, …). Inside these three sections, an unknown key is an error
 at start-up.
 
@@ -230,7 +230,7 @@ max_azimuth_rate = 10.0       # [deg/s]
 | `thrust_time_constant` | no | Thrust lag [s]. Without it the thrust follows the command at once |
 | `max_azimuth_rate` | no | [deg/s]. Without it the azimuth turns at once |
 
-The current `config.toml` is a made-up ~80 m PSV: two azimuths aft (AZ1 port, AZ2 starboard,
+The thruster layout in `configs/config_test.toml` is a made-up ~80 m PSV: two azimuths aft (AZ1 port, AZ2 starboard,
 x = −40 m) and two bow tunnels (BT1, BT2), two 3600 kW switchboards with a 10% reserve. The time
 constants (5 s azimuths, 3 s tunnels) and turn rates (10 °/s) are typical but made up.
 
@@ -245,7 +245,7 @@ constants (5 s azimuths, 3 s tunnels) and turn rates (10 °/s) are typical but m
 - **Saturation.** When τ is out of reach, `saturated` is true and `utilisation` is above 1, or `inf`
   if τ can't be given in any amount. The commands then give the closest reachable τ. With equal
   `tau_weights`, the heading (N) is held first and Y or X gives way.
-- **Switchboard power is fixed** from `config.toml`; it is not an FMU input yet.
+- **Switchboard power is fixed** from `configs/*.toml`; it is not an FMU input yet.
 - **Step size.** Tested with fixed steps of 0.1 s. One allocation step takes about 6 ms on the
   4-thruster layout (10 ms when saturated). More thrusters with forbidden zones mean more linear
   programs per step. The dynamics are exact for any step size.
@@ -253,7 +253,7 @@ constants (5 s azimuths, 3 s tunnels) and turn rates (10 °/s) are typical but m
 
 ## 8. Check that it runs
 
-With the current `config.toml`, a constant τ = (0, 300 kN, 0), 60 s and steps of 0.1 s, the last
+With `configs/config_test.toml`, a constant τ = (0, 300 kN, 0), 60 s and steps of 0.1 s, the last
 step should give:
 
 | Thruster | Command [kN @ °] | Actual [kN @ °] | Power [kW] |

@@ -3,7 +3,7 @@
 The edited values are written into a copy of the config (config_tools.set_values,
 which keeps the comments), and run_simulation.py runs with that copy. The run
 gets its own folder in results/ with the copy saved as config.toml.
-config.toml itself only changes when "Save as default" is pressed.
+The files in configs/ only change when "Save as default" is pressed.
 """
 import re
 import subprocess
@@ -18,9 +18,9 @@ import streamlit as st
 import config_tools
 import data
 
-# The sections that can be edited, grouped as in config.toml. Multi-line arrays
+# The sections that can be edited, grouped as in the config file. Multi-line arrays
 # (mass_matrix, damping_matrix), [blendermann] and the [[thrusters]] layout are
-# edited in config.toml itself.
+# edited in the config file itself.
 GROUPS = [
     ("Simulation", ["simulation"]),
     ("Wind", ["environment", "wind", "wind.slowly_varying", "wind.gust", "wind.direction_variation"]),
@@ -92,7 +92,7 @@ def widget(section, key, value, help_text, prefix, choices):
             return [type(v)(tomllib.loads(f"x = {item.strip()}")["x"]) for v, item in zip(value, items)]
         except (tomllib.TOMLDecodeError, TypeError, ValueError) as error:
             return ValueError(f"{key}: {error}")    # shown to the user below the form
-    st.text(f"{label} = {value!r} (edit in config.toml)")
+    st.text(f"{label} = {value!r} (edit in the config file)")
     return value
 
 
@@ -120,13 +120,23 @@ def render():
         with st.expander("Output of run_simulation.py", expanded=not ok):
             st.code(output)
 
-    # Where the values start from: config.toml, or the config of an earlier run.
-    sources = [("config.toml", data.CONFIG)] + [
+    # Where the values start from: a file in configs/, or the config of an earlier run.
+    configs = [(f"configs/{path.name}", path) for path in data.list_configs()]
+    if not configs:
+        st.error(f"No config file (*.toml) in {data.CONFIGS}.")
+        return
+    sources = configs + [
         (f"Run {label}", data.run_config_path(folder)) for label, folder in data.list_runs()
         if data.run_config_path(folder)]
     labels = [label for label, _ in sources]
-    source_label = st.selectbox("Start from", labels, help="The values below start from this config.")
+    default = data.default_config()
+    start = next((i for i, (_, path) in enumerate(configs) if path == default), 0)
+    source_label = st.selectbox("Start from", labels, index=start,
+                                help="The values below start from this config. The default is the one "
+                                     "OspSystemStructure.xml points to.")
     source = dict(sources)[source_label]
+    # Save as default writes to the chosen file in configs/, or the default one for a run's config.
+    target_index = labels.index(source_label) if source_label in dict(configs) else start
     base_text = source.read_text(encoding="utf-8-sig")
     base = tomllib.loads(base_text)
     help_texts = config_tools.comments(base_text)
@@ -135,8 +145,8 @@ def render():
     prefix = source_label                        # new widgets when the source changes
 
     st.caption("Change values and press **Run simulation**. The run gets its own folder in results/ with "
-               "the config it used. config.toml is only changed by **Save as default**. The vessel "
-               "matrices, the Blendermann table and the thruster layout are edited in config.toml.")
+               "the config it used. The files in configs/ are only changed by **Save as default**. The "
+               "vessel matrices, the Blendermann table and the thruster layout are edited in the file itself.")
 
     values = {}
     # enter_to_submit=False: Enter in a field does nothing; only a click on a button runs or saves.
@@ -156,7 +166,10 @@ def render():
                             values[(s, k)] = widget(s, k, lookup(base, s, k), help_texts.get((s, k)),
                                                     prefix, choices)
         run_clicked = st.form_submit_button("Run simulation", type="primary")
-        save_clicked = st.form_submit_button("Save as default in config.toml")
+        target_label = st.selectbox("Save as default in", [label for label, _ in configs], index=target_index,
+                                    key=f"{prefix}|save_target",
+                                    help="The file in configs/ that **Save as default** writes to.")
+        save_clicked = st.form_submit_button("Save as default")
 
     if not (run_clicked or save_clicked):
         return
@@ -168,16 +181,17 @@ def render():
     changes = {k: v for k, v in values.items() if v != lookup(base, *k)}
 
     if save_clicked:
-        default_text = data.CONFIG.read_text(encoding="utf-8-sig")
+        target = dict(configs)[target_label]
+        default_text = target.read_text(encoding="utf-8-sig")
         default = tomllib.loads(default_text)
         to_save = {k: v for k, v in values.items()
                    if k in editable_keys(default_text) and v != lookup(default, *k)}
         if to_save:
-            data.CONFIG.write_text(config_tools.set_values(default_text, to_save), encoding="utf-8")
-            st.success(f"Saved {len(to_save)} value(s) in config.toml: "
+            target.write_text(config_tools.set_values(default_text, to_save), encoding="utf-8")
+            st.success(f"Saved {len(to_save)} value(s) in {target_label}: "
                        + ", ".join(f"[{s}] {k}" for s, k in to_save))
         else:
-            st.info("config.toml already has these values.")
+            st.info(f"{target_label} already has these values.")
         return
 
     st.write(f"{len(changes)} value(s) changed from {source_label}:" if changes else f"No changes from {source_label}.")

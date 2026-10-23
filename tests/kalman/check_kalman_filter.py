@@ -1,7 +1,7 @@
 """Checks of the ExtendedKalmanFilter FMU (models/kalman_filter.py), without OSP.
 
 A simple "true" 3-DOF vessel, M nu_dot + D nu = tau + R^T b, is simulated in
-plain Python with the matrices in config.toml, a constant disturbance b in NED
+plain Python with the matrices in the config the simulation uses, a constant disturbance b in NED
 and a made-up wave-frequency motion added on top. The filter gets the total
 motion as measurement and must split it into LF and WF.
 
@@ -22,14 +22,17 @@ import numpy as np
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "models"))
+sys.path.insert(0, str(ROOT))                    # so app/ can be imported
+from app.data import default_config  # noqa: E402
 from kalman_filter import ExtendedKalmanFilter, rotation, wrap_angle  # noqa: E402
 
+CONFIG = default_config()                        # the config the simulation uses (OspSystemStructure.xml)
 DT = 0.1
 
 
 def make_filter():
     kf = ExtendedKalmanFilter(instance_name="check", resources=".")
-    kf.config_path = str(ROOT / "config.toml")
+    kf.config_path = str(CONFIG)
     kf.exit_initialization_mode()
     return kf
 
@@ -42,7 +45,7 @@ def wave_motion(t, omega_0):
 
 def simulate(duration, psi_0=0.0, bias_ned=(2.0e4, -3.0e4, 1.0e5)):
     """Runs truth and filter side by side. Returns time, truth and estimates."""
-    config = tomllib.loads((ROOT / "config.toml").read_text(encoding="utf-8"))
+    config = tomllib.loads(CONFIG.read_text(encoding="utf-8"))
     M = np.array(config["vessel"]["mass_matrix"], dtype=float)
     D = np.array(config["vessel"]["damping_matrix"], dtype=float)
     omega_0 = 2.0 * np.pi / config["waves"]["tp"]

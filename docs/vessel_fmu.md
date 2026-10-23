@@ -16,7 +16,7 @@ The hull is one FMI 2.0 co-simulation unit built with pythonfmu. It combines fou
 
 ## Shared configuration
 
-Like the other FMUs, VesselBlock exposes a single `config_path` string parameter. Point it to **config.toml** in the repository. At initialization the wrapper reads `[vessel_fmu].data_file` relative to that TOML file; the referenced JSON stores large 6-by-6 arrays and hydrodynamic tables that are impractical to inline in TOML.
+Like the other FMUs, VesselBlock exposes a single `config_path` string parameter. Point it to a config file in **configs/**. At initialization the wrapper reads `[vessel_fmu].mat_file` (or `data_file`) relative to that TOML file; the referenced JSON stores large 6-by-6 arrays and hydrodynamic tables that are impractical to inline in TOML.
 
 The hull uses `[vessel]` (geometry and `type`), `[environment].air_density`, and `[blendermann][vessel.type]` for wind. It **does not use** the wind settings inside the synthetic JSON. It reads LF matrices, gravity, wave force/drift and motion tables from the specified hydrodynamic data file. Changes to TOML or referenced data are applied on next FMU initialization, without rebuilding. Changing Python requires a rebuild.
 

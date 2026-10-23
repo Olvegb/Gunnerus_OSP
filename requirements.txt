@@ -3,10 +3,13 @@
 # use the Python installed there.
 #
 # Install:  pip install -r requirements.txt   (also works inside the conda env)
-numpy==2.1.0         # every FMU that does matrix maths (Kalman filter, thrusters)
-scipy==1.14.1        # ThrustAllocation: linprog (HiGHS)
+# In a conda env, use OpenBLAS, not MKL: numpy.linalg with MKL crashes Python
+# silently on the NTNU virtual PC.  conda install "libblas=*=*openblas"
+numpy==2.5.3         # every FMU that does matrix maths (vessel, Kalman filter, thrusters)
+scipy==1.18.1        # ThrustAllocation: linprog (HiGHS); vessel_cosim: loadmat (.mat hydrodynamics)
 pandas               # run_simulation.py: reads the result CSVs
 pythonfmu==0.7.0     # build_fmus.py (the version the FMUs in fmus/ were built with)
 libcosimpy==0.0.6    # run_simulation.py: runs OspSystemStructure.xml
 streamlit            # app/: the results app
 plotly               # app/: plots in the results app
+fmpy                 # tests/vessel/check_vessel_fmu.py: runs the built VesselBlock FMU
