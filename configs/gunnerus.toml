@@ -76,7 +76,7 @@ n_components = 0              # number of harmonics
 [wind.direction_variation]
 rate_deg_per_s = 0.0            # constant turning rate, clockwise positive [deg/s]
 time_constant = 600.0           # T of the slow random variation [s]
-std_deg = 5.0                   # standard deviation of the slow random variation [deg]
+std_deg = 0.0                   # standard deviation of the slow random variation [deg]
 
 
 # ---------------------------------------------------------------------
@@ -151,19 +151,23 @@ area_frontal = 82.2923208             # frontal area above water, A_F [m^2]
 # Current_s_H_frontal = 1.09 #From free surface
 
 
-#   mass_matrix    = rigid-body mass + added mass [kg, kg, kg m^2]
-#   damping_matrix = linear damping, M/D about 100 s in surge and 50 s in
-#                    sway and yaw [kg/s, kg/s, kg m^2/s]
+#   mass_matrix    = rigid-body mass + added mass [kg, kg m, kg m^2]
+#   damping_matrix = linear damping B + Bv [kg/s, kg m/s, kg m^2/s]
+# Copied by hand from data_examples/GunnerusL35_20201112.mat, rows and columns
+# surge, sway, yaw of the 6x6 matrices, at the LF frequency
+# lf_reference_omega_rad_s = 0.2094395 in [vessel_fmu]: MRB + A(w) and
+# B(w) + Bv. The same values the vessel FMU uses. M/D is about 30 s in
+# surge, 9 s in sway and 8 s in yaw.
 
 mass_matrix = [
-    [1.0, 0.0, 0.0],
-    [0.0, 1.0, 0.0],
-    [0.0, 0.0, 1.0],
+    [665784.04,  0.0,         0.0       ],
+    [0.0,        1031111.07, -237053.56 ],
+    [0.0,       -237053.56,   79377120.0],
 ]
 damping_matrix = [
-    [1.0, 0.0, 0.0],
-    [0.0, 1.0, 0.0],
-    [0.0, 0.0, 1.0],
+    [22378.42,  0.0,        0.0       ],
+    [0.0,       111575.08, -160.437   ],
+    [0.0,      -160.437,    9756114.0 ],
 ]
 
 # Vessel FMU (hull/vessel.py): 6-DOF LF + WF hull. The JSON file holds the
@@ -217,7 +221,7 @@ tender                         = { cd_t = 0.85, cd_lAF_bow = 0.55, cd_lAF_stern 
 north_ref = 0.0                 # set-point north [m]
 east_ref = 0.0                  # set-point east [m]
 heading_ref_deg = 0.0           # set-point heading [deg]
-natural_frequency = [0.05, 0.05, 0.05]          # wn [rad/s]; higher = faster. 0.05 = period of about 2 min
+natural_frequency = [0.0, 0.0, 0.0]             # wn [rad/s]; 0 = controller off, the thrusters give no force. 0.05 = period of about 2 min
 damping_ratio = [0.9, 0.9, 0.9]                 # zeta [-]; 1 = critically damped, lower = more overshoot
 integral_force_limit = [3.0e5, 3.0e5, 1.0e7]    # anti-windup: max from the integral term [N, N, Nm]
 
