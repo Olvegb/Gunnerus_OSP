@@ -12,7 +12,7 @@ from vessel_cosim.WF import WF
 from vessel_cosim.WindModel import WindLoads
 from vessel_cosim.WaveLoads import WaveLoads,WaveComponents
 from models.vessel import read_table,POSE,VELOCITY
-from app.data import default_config
+from Gunnerus_OSP_sim.src.app.build.data import default_config
 
 def main():
     file=ROOT/'fmus/VesselBlock.fmu'

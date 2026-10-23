@@ -16,9 +16,9 @@ import plotly.io as pio
 import streamlit as st
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-import data  # noqa: E402
-import footprint  # noqa: E402
-import editor  # noqa: E402
+import Gunnerus_OSP_sim.src.app.build.data as data  # noqa: E402
+import Gunnerus_OSP_sim.src.app.build.footprint as footprint  # noqa: E402
+import Gunnerus_OSP_sim.src.app.build.editor as editor  # noqa: E402
 
 st.set_page_config(page_title="Gunnerus DP results", page_icon="⚓", layout="wide")
 

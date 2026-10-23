@@ -17,7 +17,7 @@ sys.path.insert(0, str(ROOT))
 
 from vessel_cosim.Wamit import load_mat_vessel, FREQUENCY_COUNT, HEADING_STEP_DEG, FREQUENCY_SPACING
 from vessel_cosim.WaveLoads import ResponseTable, selected_drift_method
-from app.data import default_config
+from Gunnerus_OSP_sim.src.app.build.data import default_config
 
 MAT = ROOT / "vessel_cosim/data/tanker.mat"
 

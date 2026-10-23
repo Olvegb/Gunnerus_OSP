@@ -23,7 +23,7 @@ import numpy as np
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "models"))
 sys.path.insert(0, str(ROOT))                    # so app/ can be imported
-from app.data import default_config  # noqa: E402
+from Gunnerus_OSP_sim.src.app.build.data import default_config  # noqa: E402
 from Gunnerus_OSP_sim.src.ospfmusim.observer.ekf.ekf import ExtendedKalmanFilter, rotation, wrap_angle  # noqa: E402
 
 CONFIG = default_config()                        # the config the simulation uses (OspSystemStructure.xml)

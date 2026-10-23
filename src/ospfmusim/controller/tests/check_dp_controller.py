@@ -18,7 +18,7 @@ sys.path.insert(0, str(ROOT))                    # so models/ can be imported
 
 import numpy as np
 
-from app.data import default_config  # noqa: E402
+from Gunnerus_OSP_sim.src.app.build.data import default_config  # noqa: E402
 from models.dp_controller import OUTPUTS, DPController, rotation, total_tau, wrap_angle
 
 CONFIG = default_config()                        # the config the simulation uses (OspSystemStructure.xml)

@@ -15,8 +15,8 @@ from pathlib import Path
 
 import streamlit as st
 
-import config_tools
-import data
+import Gunnerus_OSP_sim.src.app.build.config_tools as config_tools
+import Gunnerus_OSP_sim.src.app.build.data as data
 
 # The sections that can be edited, grouped as in the config file. Multi-line arrays
 # (mass_matrix, damping_matrix), [blendermann] and the [[thrusters]] layout are

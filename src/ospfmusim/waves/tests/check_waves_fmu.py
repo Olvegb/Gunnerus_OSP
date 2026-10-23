@@ -16,7 +16,7 @@ sys.path.insert(0, str(ROOT))                    # so wave_cosim/ and models/ ca
 
 import numpy as np
 
-from app.data import default_config  # noqa: E402
+from Gunnerus_OSP_sim.src.app.build.data import default_config  # noqa: E402
 from models.waves import COMPONENT_OUTPUTS, N_WAVES, SLOTS, Waves
 from wave_cosim.sea_state import directions_to, sea_from_settings
 from wave_cosim.settings import load_settings
