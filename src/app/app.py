@@ -1,0 +1,335 @@
+"""Results app: edit the config, run new simulations, and show the results as plots.
+
+Run from the repo folder, with the master environment active:
+
+    streamlit run app/app.py
+
+It opens in the browser. See docs/app.md.
+"""
+import sys
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+import plotly.graph_objects as go
+import plotly.io as pio
+import streamlit as st
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import data  # noqa: E402
+import footprint  # noqa: E402
+import editor  # noqa: E402
+
+st.set_page_config(page_title="Gunnerus DP results", page_icon="⚓", layout="wide")
+
+
+# ---------------------------------------------------------------------
+#  Helpers
+# ---------------------------------------------------------------------
+
+@st.cache_data(show_spinner="Reading results ...")
+def cached_results(folder, stamp):           # stamp is only there to refresh the cache
+    return data.load_results(folder)
+
+
+@st.cache_data(show_spinner="Making the footprint animation ...")
+def footprint_html(folder, stamp, start, stop, set_point, n_arrows, n_frames, with_environment, dark):
+    """The animated footprint as HTML, cached. stamp is only there to refresh the cache.
+
+    Shown with st.iframe instead of st.plotly_chart, because st.plotly_chart
+    validates every animation frame on every rerun of the app, which takes seconds.
+    plotly.js is loaded from its CDN, so this plot needs an internet connection.
+    """
+    results = {name: df.loc[start:stop] for name, df in data.load_results(folder).items()}
+    figure = footprint.animated_footprint(results["vessel"], set_point, n_arrows, n_frames,
+                                          results.get("environment") if with_environment else None)
+    figure["layout"]["template"] = pio.templates["plotly_dark" if dark else "plotly_white"].to_plotly_json()
+    figure["layout"]["paper_bgcolor"] = "rgba(0,0,0,0)"
+    return pio.to_html(figure, include_plotlyjs="cdn", full_html=False, auto_play=False, validate=False,
+                       config={"displaylogo": False})
+
+
+def line_plot(series, title, y_label, height=320):
+    """One plot with one line per (name, pandas Series) in series."""
+    fig = go.Figure()
+    for name, s in series:
+        fig.add_trace(go.Scatter(x=s.index, y=s.values, name=name, mode="lines"))
+    fig.update_layout(title=title, xaxis_title="Time [s]", yaxis_title=y_label, height=height,
+                      margin=dict(l=10, r=10, t=40, b=10), legend=dict(orientation="h", y=-0.25),
+                      hovermode="x unified")
+    return fig
+
+
+def show(fig):
+    st.plotly_chart(fig, width="stretch", theme="streamlit")
+
+
+def missing(*names):
+    st.info("No results for " + ", ".join(names) + " in this run.")
+
+
+def deg(s):
+    return np.rad2deg(s)
+
+
+# ---------------------------------------------------------------------
+#  Sidebar: which run to show, time window
+# ---------------------------------------------------------------------
+
+st.sidebar.title("⚓ Gunnerus DP")
+runs = data.list_runs()
+labels = [label for label, _ in runs]
+if "pending_run" in st.session_state:          # a run that just finished in the New run tab
+    st.session_state["run_select"] = st.session_state.pop("pending_run")
+if st.session_state.get("run_select") not in labels:
+    st.session_state.pop("run_select", None)
+label = st.sidebar.selectbox("Run", labels, key="run_select", help="Every run has its own folder in results/, "
+                             "newest first.") if runs else None
+with st.sidebar.expander("Other folder"):
+    other = st.text_input("Results folder", "", placeholder=r"C:\...\my_runs\run1",
+                          help="Show a run that is not in results/.")
+folder = Path(other) if other else dict(runs).get(label)
+
+if st.sidebar.button("Reload"):
+    st.cache_data.clear()
+
+results = {}
+if folder is not None and folder.is_dir():
+    results = cached_results(str(folder), data.folder_stamp(folder))
+elif folder is not None:
+    st.sidebar.error(f"The folder {folder} does not exist.")
+
+config_path = data.run_config_path(folder) if folder is not None else None
+config = data.load_config(config_path or data.default_config())
+if results:
+    end_time = float(max(df.index[-1] for df in results.values() if len(df)))
+    start, stop = st.sidebar.slider("Time window [s]", 0.0, end_time, (0.0, end_time),
+                                    step=max(end_time / 1000, 0.1))
+    results = {name: df.loc[start:stop] for name, df in results.items()}
+    st.sidebar.caption("Files: " + ", ".join(sorted(results)))
+    st.sidebar.caption("Config: the run's own copy." if config_path else
+                       f"Config: configs/{data.default_config().name} now (this run has no copy), which "
+                       "may differ from the config the results were made with.")
+
+R = results.get                                 # short name: R("vessel") -> DataFrame or None
+
+
+# ---------------------------------------------------------------------
+#  Pages
+# ---------------------------------------------------------------------
+
+tabs = st.tabs(["New run", "Overview", "Vessel", "Environment", "Kalman filter", "Control and thrusters", "Data"])
+
+with tabs[0]:
+    editor.render()
+
+if not results:
+    with tabs[1]:
+        st.warning("No results to show yet. Make a run in the **New run** tab "
+                   "(or `python run_simulation.py`).")
+    st.stop()
+
+# --- Overview --------------------------------------------------------
+with tabs[1]:
+    st.header("Overview")
+    numbers = data.summary(results, config)
+    columns = st.columns(4)
+    for i, (label, (value, unit)) in enumerate(numbers.items()):
+        columns[i % 4].metric(label, f"{value:,.2f} {unit}".strip())
+
+    left, right = st.columns([3, 2])
+    with left:
+        vessel = R("vessel")
+        if vessel is not None:
+            ctrl = config.get("controller", {})
+            fig = go.Figure()
+            fig.add_trace(go.Scatter(x=vessel["east"], y=vessel["north"], mode="lines", name="Total (LF + WF)"))
+            fig.add_trace(go.Scatter(x=vessel["lf_east"], y=vessel["lf_north"], mode="lines", name="LF"))
+            fig.add_trace(go.Scatter(x=[ctrl.get("east_ref", 0.0)], y=[ctrl.get("north_ref", 0.0)],
+                                     mode="markers", name="Set-point", marker=dict(symbol="x", size=12)))
+            fig.add_trace(go.Scatter(x=vessel["east"].iloc[[-1]], y=vessel["north"].iloc[[-1]],
+                                     mode="markers", name="End", marker=dict(size=9)))
+            fig.update_layout(title="Position (footprint)", xaxis_title="East [m]", yaxis_title="North [m]",
+                              height=480, margin=dict(l=10, r=10, t=40, b=10),
+                              yaxis=dict(scaleanchor="x", scaleratio=1))
+            show(fig)
+        else:
+            missing("vessel")
+    with right:
+        st.subheader("Config of this run")
+        wind, waves, current = config.get("wind", {}), config.get("waves", {}), config.get("current", {})
+        st.markdown(
+            f"- **Vessel:** {config.get('vessel', {}).get('type', '?')}\n"
+            f"- **Wind:** {wind.get('mean_speed', '?')} m/s from {wind.get('direction_deg', '?')}°\n"
+            f"- **Waves:** H_s {waves.get('hs', '?')} m, T_p {waves.get('tp', '?')} s, "
+            f"from {waves.get('direction_deg', '?')}° ({waves.get('sea_type', '?')})\n"
+            f"- **Current:** {current.get('speed', '?')} m/s towards {current.get('direction_deg', '?')}°\n"
+            f"- **Duration:** {config.get('simulation', {}).get('duration', '?')} s\n"
+            f"- **Thrusters:** {', '.join(name for _, name in data.thruster_slots(config)) or 'none'}"
+        )
+
+    vessel = R("vessel")
+    if vessel is not None and len(vessel) > 1:
+        left, right = st.columns([3, 2])
+        with right:
+            st.subheader("Heading and environment over time")
+            n_arrows = st.slider("Number of heading arrows", 5, 100, 25, step=5)
+            n_frames = st.slider("Time steps on the slider", 20, 400, 150, step=10,
+                                 help="More steps = smoother, but a slower page.")
+            show_environment = st.checkbox("Show wind, waves and current", value=True)
+            st.caption("Move the time slider under the plot, or press ▶ Play. At each time the plot shows "
+                       "the track so far, earlier headings (thin arrows, dots coloured by time) and the "
+                       "vessel now (large dot and thick arrow). Position and heading are the total motion "
+                       "(LF + WF).")
+            if show_environment:
+                reference = ", ".join(f"{name.lower()} {value:g} {'m H_s' if name == 'Waves' else 'm/s'}"
+                                      for name, value in data.ENVIRONMENT_REFERENCE.items())
+                st.caption("Wind, waves and current start on the side they come from and point the way "
+                           "they go, with their values at that time. The length shows the size: full length "
+                           f"at {reference}, and at least a quarter of that so small values still show their "
+                           "direction.")
+        with left:
+            ctrl = config.get("controller", {})
+            set_point = (ctrl.get("north_ref", 0.0), ctrl.get("east_ref", 0.0))
+            dark = getattr(st.context.theme, "type", None) == "dark"
+            html = footprint_html(str(folder), data.folder_stamp(folder), start, stop, set_point,
+                                  n_arrows, n_frames, show_environment, dark)
+            st.iframe(html, height=640)              # our own HTML, made just above
+
+# --- Vessel ----------------------------------------------------------
+with tabs[2]:
+    st.header("Vessel")
+    vessel = R("vessel")
+    if vessel is None:
+        missing("vessel")
+    else:
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Std north", f"{vessel['north'].std():,.2f} m")
+        c2.metric("Std east", f"{vessel['east'].std():,.2f} m")
+        c3.metric("Std position", f"{data.position_std(vessel):,.2f} m")
+        c1, c2 = st.columns(2)
+        with c1:
+            show(line_plot([("Total", vessel["north"]), ("LF", vessel["lf_north"])], "North", "[m]"))
+            show(line_plot([("Total", deg(vessel["yaw"])), ("LF", deg(vessel["lf_yaw"]))], "Heading", "[deg]"))
+        with c2:
+            show(line_plot([("Total", vessel["east"]), ("LF", vessel["lf_east"])], "East", "[m]"))
+            show(line_plot([("North [m]", vessel["wf_north"]), ("East [m]", vessel["wf_east"]),
+                            ("Yaw [deg]", deg(vessel["wf_yaw"]))], "Wave-frequency (WF) motion", ""))
+        show(line_plot([("u", vessel["lf_u"]), ("v", vessel["lf_v"])], "LF velocity, body frame", "[m/s]"))
+
+        st.subheader("Loads on the vessel, body frame")
+        dynamics = R("dynamics")
+        c1, c2, c3 = st.columns(3)
+        for column, dof, unit in ((c1, "X", "N"), (c2, "Y", "N"), (c3, "N", "Nm")):
+            series = [("Wind", vessel[f"wind_{dof}"]), ("Wave drift", vessel[f"wave_drift_{dof}"])]
+            if dynamics is not None:
+                series.append(("Thrusters", dynamics[dof]))
+            with column:
+                show(line_plot(series, dof, f"[{unit}]"))
+
+# --- Environment -----------------------------------------------------
+with tabs[3]:
+    st.header("Environment (NED)")
+    env = R("environment")
+    if env is None:
+        missing("environment")
+    else:
+        show(line_plot([("Total", data.total_wind_speed(env)), ("Mean", env["mean_wind_speed"]),
+                        ("Slowly varying", env["slowly_varying_wind_speed"]), ("Gust", env["gust_wind_speed"])],
+                       "Wind speed", "[m/s]", height=380))
+        c1, c2 = st.columns(2)
+        with c1:
+            show(line_plot([("Wind (from)", env["wind_direction_deg"]),
+                            ("Waves (from)", env["wave_direction_deg"]),
+                            ("Current (towards)", env["current_direction_deg"])], "Directions", "[deg]"))
+        with c2:
+            show(line_plot([("North", env["current_north"]), ("East", env["current_east"])],
+                           "Current", "[m/s]"))
+        waves = R("waves")
+        st.markdown(f"**Sea state:** H_s = {env['H_s'].iloc[-1]:.2f} m, T_p = {env['T_p'].iloc[-1]:.2f} s"
+                    + (f", kept energy in the wave components = {waves['kept_energy_fraction'].iloc[-1]:.1%}"
+                       if waves is not None and "kept_energy_fraction" in waves else ""))
+
+# --- Kalman filter ---------------------------------------------------
+with tabs[4]:
+    st.header("Kalman filter")
+    kf, vessel = R("kalman_filter"), R("vessel")
+    if kf is None:
+        missing("kalman_filter")
+    else:
+        st.caption("Estimate vs the vessel's true LF and WF motion. The filter only sees the measured total.")
+        c1, c2, c3 = st.columns(3)
+        for column, dof, true, wf_true, label, f in (
+                (c1, "north", "lf_north", "wf_north", "North [m]", lambda s: s),
+                (c2, "east", "lf_east", "wf_east", "East [m]", lambda s: s),
+                (c3, "psi", "lf_yaw", "wf_yaw", "Heading [deg]", deg)):
+            hat, wf_hat = f"{dof}_hat", f"wf_{dof}_hat"
+            with column:
+                series = [("Measured total", f(kf[f"{dof}_meas"])), ("LF estimate", f(kf[hat]))]
+                if vessel is not None:
+                    series.append(("LF true", f(vessel[true])))
+                show(line_plot(series, f"LF: {label}", ""))
+                series = [("WF estimate", f(kf[wf_hat]))] if wf_hat in kf else []
+                if vessel is not None:
+                    series.append(("WF true", f(vessel[wf_true])))
+                show(line_plot(series, f"WF: {label}", ""))
+        show(line_plot([("b_x [N]", kf["b_x_hat"]), ("b_y [N]", kf["b_y_hat"]), ("b_n [Nm]", kf["b_n_hat"])],
+                       "Bias estimate (NED)", ""))
+
+# --- Control and thrusters --------------------------------------------
+with tabs[5]:
+    st.header("Control and thrusters")
+    dp, dynamics, allocation = R("dp_controller"), R("dynamics"), R("allocation")
+    if dp is None:
+        missing("dp_controller")
+    else:
+        c1, c2 = st.columns(2)
+        with c1:
+            show(line_plot([("North [m]", dp["error_north"]), ("East [m]", dp["error_east"])],
+                           "Position error", "[m]"))
+        with c2:
+            show(line_plot([("Heading", dp["error_heading_deg"])], "Heading error", "[deg]"))
+        c1, c2, c3 = st.columns(3)
+        for column, dof, unit in ((c1, "X", "N"), (c2, "Y", "N"), (c3, "N", "Nm")):
+            # Runs from before the controller sent out P, I and D only have tau_<dof>.
+            terms = [(term, dp[f"tau_{dof}_{term}"]) for term in ("P", "I", "D") if f"tau_{dof}_{term}" in dp]
+            commanded = sum(values for _, values in terms) if terms else dp[f"tau_{dof}"]
+            series = [("Commanded (P + I + D)", commanded)]
+            if dynamics is not None:
+                series.append(("Delivered", dynamics[dof]))
+            with column:
+                show(line_plot(series, f"Force {dof}", f"[{unit}]"))
+                if terms:
+                    show(line_plot(terms, f"PID terms {dof}", f"[{unit}]"))
+
+    if dynamics is not None:
+        slots = data.thruster_slots(config)
+        st.subheader("Thrusters")
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            show(line_plot([(name, dynamics[f"thruster{k}_thrust"] / 1e3) for k, name in slots],
+                           "Thrust", "[kN]"))
+        with c2:
+            show(line_plot([(name, dynamics[f"thruster{k}_azimuth_deg"]) for k, name in slots],
+                           "Azimuth", "[deg]"))
+        with c3:
+            show(line_plot([(name, dynamics[f"thruster{k}_power_kw"]) for k, name in slots]
+                           + [("Total", dynamics["total_power_kw"])], "Power", "[kW]"))
+        if allocation is not None:
+            show(line_plot([("Utilisation", allocation["utilisation"]),
+                            ("Saturated", allocation["saturated"].astype(float))],
+                           "Allocation", "[-]", height=260))
+
+# --- Data ------------------------------------------------------------
+with tabs[6]:
+    st.header("Data")
+    simulator = st.selectbox("FMU", sorted(results))
+    df = results[simulator]
+    show_waves = st.checkbox("Show the wave component columns (wave1_ ... wave100_)", value=False)
+    columns = [c for c in df.columns if show_waves or not data.WAVE_COLUMN.match(c)]
+    chosen = st.multiselect("Columns to plot", columns, default=columns[:1])
+    if chosen:
+        show(line_plot([(c, df[c]) for c in chosen], simulator, "", height=420))
+    st.dataframe(df[columns], width="stretch", height=300)
+    st.download_button("Download as CSV", df.to_csv().encode("utf-8"), file_name=f"{simulator}.csv",
+                       mime="text/csv")
